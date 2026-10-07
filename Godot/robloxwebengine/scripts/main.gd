@@ -1,10 +1,11 @@
 extends Node
-## Bootstrap del gioco: menu → Play → spawn del personaggio, multiplayer via
-## WebSocket (stato ~15 Hz verso il server, avatar remoti interpolati, chat),
-## checkpoint/morte/respawn, monete e traguardo.
+## Bootstrap del gioco: schermata di scelta del livello (file o predefinito) →
+## mondo costruito dai dati con LevelBuilder → menu → Play → multiplayer via
+## WebSocket, checkpoint/morte/respawn, monete e traguardo.
 
 const CHARACTER_SCENE_PATH := "res://scenes/player/character.tscn"
 const REMOTE_CHARACTER_SCENE_PATH := "res://scenes/player/remote_character.tscn"
+const EDITOR_SCENE_PATH := "res://scenes/editor/editor.tscn"
 const SPAWN_OFFSET := Vector3(0, 5, 0)
 const MESSAGE_TIME := 3.0
 const STATE_SEND_INTERVAL := 1.0 / 15.0
@@ -12,16 +13,19 @@ const STATE_SEND_INTERVAL := 1.0 / 15.0
 @onready var world: Node3D = $World
 @onready var menu: MainMenu = $Menu
 @onready var hud: GameHUD = $HUD
+@onready var level_select: LevelSelect = $LevelSelect
 @onready var global_sound: AudioStreamPlayer = $GlobalSound
 @onready var net: NetClient = $NetClient
 
 var character: PlayerCharacter
+var level_data: Dictionary = {}
 var respawn_position := Vector3(0, 5, 12)
 var coins_total := 0
 var coins_collected := 0
 var goal_reached := false
 
 var _game_started := false
+var _test_mode := false
 var _state_timer := 0.0
 var _remote_characters: Dictionary = {}  # id -> RemoteCharacter
 
@@ -30,6 +34,7 @@ func _ready() -> void:
 	print("ROBLOXWEBENGINE_READY")
 	menu.play_pressed.connect(_on_play_pressed)
 	hud.visible = false
+	menu.visible = false
 	hud.chat_submitted.connect(_on_chat_submitted)
 	net.connected.connect(_on_net_connected)
 	net.disconnected.connect(_on_net_disconnected)
@@ -38,20 +43,33 @@ func _ready() -> void:
 	net.peer_left.connect(_on_peer_left)
 	net.peer_state.connect(_on_peer_state)
 	net.chat_received.connect(_on_chat_received)
+	level_select.level_chosen.connect(_on_level_chosen)
+	level_select.editor_requested.connect(_on_editor_requested)
+
+	if not LevelData.play_request.is_empty():
+		# Avvio diretto in modalità test (pulsante "Testa" dell'editor).
+		var request: Dictionary = LevelData.play_request
+		LevelData.play_request = {}
+		_test_mode = true
+		level_select.visible = false
+		start_level(request)
+		_on_play_pressed()
+	else:
+		level_select.visible = true
 
 
-func _on_play_pressed() -> void:
-	if _game_started:
-		return
-	_game_started = true
-	menu.visible = false
-	hud.visible = true
-	net.player_name = menu.player_name()
-	_connect_world_nodes()
-	_spawn_character()
-	hud.show_message("Raggiungi il traguardo in alto!", MESSAGE_TIME)
-
-	net.start(NetClient.resolve_server_url())
+## Costruisce il mondo a partire dai dati di un livello. Ritorna false se non validi.
+func start_level(incoming: Dictionary) -> bool:
+	if incoming.is_empty() or not LevelData.validate(incoming).is_empty():
+		return false
+	level_data = incoming
+	LevelBuilder.build_into(world, level_data)
+	goal_reached = false
+	coins_total = 0
+	coins_collected = 0
+	respawn_position = Vector3(0, 5, 12)
+	hud.set_coins(0, 0)
+	return true
 
 
 func _process(delta: float) -> void:
@@ -64,8 +82,53 @@ func _process(delta: float) -> void:
 		net.send_state(character.global_position, character.visual.rotation.y, speed)
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not _test_mode or not _game_started:
+		return
+	if event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_ESCAPE and not hud.is_chat_open():
+		_return_to_editor()
+		get_viewport().set_input_as_handled()
+
+
+func _on_level_chosen(incoming: Dictionary, source: String) -> void:
+	if not start_level(incoming):
+		level_select.status_label.text = "Livello non valido."
+		return
+	level_select.visible = false
+	menu.visible = true
+	menu.set_level_title(LevelData.title(incoming))
+	if source == "file":
+		print("Livello caricato da file: %s" % LevelData.title(incoming))
+
+
+func _on_editor_requested() -> void:
+	get_tree().change_scene_to_file(EDITOR_SCENE_PATH)
+
+
+func _on_play_pressed() -> void:
+	if _game_started:
+		return
+	_game_started = true
+	menu.visible = false
+	hud.visible = true
+	net.player_name = menu.player_name()
+	_connect_world_nodes()
+	_spawn_character()
+	if _test_mode:
+		hud.show_message("Modalità test — Esc per tornare all'editor", 4.0)
+	else:
+		hud.show_message("Raggiungi il traguardo in alto!", MESSAGE_TIME)
+		net.start(NetClient.resolve_server_url())
+
+
+func _return_to_editor() -> void:
+	net.stop()
+	get_tree().change_scene_to_file(EDITOR_SCENE_PATH)
+
+
 func _connect_world_nodes() -> void:
-	var spawn := world.get_node_or_null("SpawnLocation") as Node3D
+	var spawn := _find_spawn()
 	if spawn:
 		respawn_position = spawn.global_position + SPAWN_OFFSET
 
@@ -79,6 +142,13 @@ func _connect_world_nodes() -> void:
 
 	for node in get_tree().get_nodes_in_group("goal"):
 		node.reached.connect(_on_goal_reached)
+
+
+func _find_spawn() -> Node3D:
+	for node in get_tree().get_nodes_in_group("spawn"):
+		if node is Node3D:
+			return node
+	return world.get_node_or_null("SpawnLocation") as Node3D
 
 
 func _spawn_character() -> void:

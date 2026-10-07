@@ -1,0 +1,69 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/level_select.gd" id="1_x15a5"]
+
+[node name="LevelSelect" type="CanvasLayer" unique_id=1865114409]
+script = ExtResource("1_x15a5")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1604328714]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.07, 0.09, 0.13, 1)
+
+[node name="Center" type="CenterContainer" parent="." unique_id=1752034821]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Center" unique_id=598081216]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Center/VBox" unique_id=974850872]
+layout_mode = 2
+theme_override_font_sizes/font_size = 52
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "ROBLOX WEB ENGINE"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/VBox" unique_id=1260559250]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
+text = "Scegli il livello da giocare"
+horizontal_alignment = 1
+
+[node name="DefaultButton" type="Button" parent="Center/VBox" unique_id=1370799688]
+custom_minimum_size = Vector2(420, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Gioca il livello predefinito"
+
+[node name="LoadButton" type="Button" parent="Center/VBox" unique_id=568006539]
+custom_minimum_size = Vector2(420, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Carica livello da file (.json)"
+
+[node name="EditorButton" type="Button" parent="Center/VBox" unique_id=1688067459]
+custom_minimum_size = Vector2(420, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Crea un livello (Editor)"
+
+[node name="Status" type="Label" parent="Center/VBox" unique_id=1097024130]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.95, 0.75, 0.45, 1)
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Hint" type="Label" parent="Center/VBox" unique_id=261747025]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.5, 0.55, 0.63, 1)
+text = "Il livello è un unico file .json: senza server, per giocare in multiplayer
+ogni giocatore deve caricare lo stesso file."
+horizontal_alignment = 1

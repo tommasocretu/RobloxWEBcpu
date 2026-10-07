@@ -1,0 +1,1413 @@
+{
+  "format": "robloxweb-level",
+  "meta": {
+    "author": "RobloxWebEngine",
+    "description": "Il livello di esempio originale, remixabile con l'editor.",
+    "title": "Obby predefinito"
+  },
+  "parts": [
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#5c8f52",
+      "id": "p1",
+      "kind": "part",
+      "name": "Baseplate",
+      "position": [
+        0.0,
+        -0.5,
+        0.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        240.0,
+        1.0,
+        240.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#a1a3a3",
+      "id": "p2",
+      "kind": "spawn",
+      "name": "SpawnLocation",
+      "position": [
+        0.0,
+        0.5,
+        12.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        10.0,
+        1.0,
+        10.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#c4291c",
+      "id": "p3",
+      "kind": "part",
+      "name": "Platform1",
+      "position": [
+        0.0,
+        2.0,
+        0.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        8.0,
+        1.0,
+        8.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#f58c29",
+      "id": "p4",
+      "kind": "part",
+      "name": "Platform2",
+      "position": [
+        4.0,
+        3.5,
+        -10.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        6.0,
+        1.0,
+        6.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#3da8c9",
+      "id": "p5",
+      "kind": "part",
+      "name": "Platform3",
+      "position": [
+        -3.0,
+        5.0,
+        -19.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        6.0,
+        1.0,
+        6.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#a1a3a3",
+      "id": "p6",
+      "kind": "part",
+      "name": "SpinnerPlatform",
+      "position": [
+        0.0,
+        6.5,
+        -28.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        12.0,
+        1.0,
+        12.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#c4291c",
+      "id": "p7",
+      "kind": "spinner",
+      "name": "Spinner",
+      "position": [
+        0.0,
+        7.9,
+        -28.0
+      ],
+      "props": {
+        "speed": 90.0
+      },
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        14.0,
+        0.8,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#2673e6",
+      "id": "p8",
+      "kind": "checkpoint",
+      "name": "Checkpoint1",
+      "position": [
+        0.0,
+        6.5,
+        -40.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        8.0,
+        1.0,
+        8.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#d91f0d",
+      "id": "p9",
+      "kind": "kill",
+      "name": "Lava",
+      "position": [
+        0.0,
+        2.0,
+        -67.0
+      ],
+      "props": {
+        "mesh_offset": [
+          0.0,
+          -1.5,
+          0.0
+        ]
+      },
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        40.0,
+        4.0,
+        46.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#f58c29",
+      "id": "p10",
+      "kind": "moving_platform",
+      "name": "MovingPlatform1",
+      "position": [
+        -8.0,
+        7.0,
+        -50.0
+      ],
+      "props": {
+        "duration": 4.0,
+        "offset": [
+          16.0,
+          0.0,
+          0.0
+        ]
+      },
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        6.0,
+        1.0,
+        6.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#a1a3a3",
+      "id": "p11",
+      "kind": "part",
+      "name": "LavaStep1",
+      "position": [
+        0.0,
+        7.5,
+        -58.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        1.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#3da8c9",
+      "id": "p12",
+      "kind": "moving_platform",
+      "name": "Elevator",
+      "position": [
+        5.0,
+        4.0,
+        -62.0
+      ],
+      "props": {
+        "duration": 3.0,
+        "offset": [
+          0.0,
+          5.0,
+          0.0
+        ]
+      },
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        1.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#a1a3a3",
+      "id": "p13",
+      "kind": "part",
+      "name": "LavaStep2",
+      "position": [
+        3.0,
+        8.0,
+        -68.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        1.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#2673e6",
+      "id": "p14",
+      "kind": "checkpoint",
+      "name": "Checkpoint2",
+      "position": [
+        0.0,
+        8.0,
+        -74.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        8.0,
+        1.0,
+        8.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#c4291c",
+      "id": "p15",
+      "kind": "part",
+      "name": "TowerStep1",
+      "position": [
+        4.0,
+        9.0,
+        -82.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        1.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#f58c29",
+      "id": "p16",
+      "kind": "part",
+      "name": "TowerStep2",
+      "position": [
+        -4.0,
+        10.0,
+        -87.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        1.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#e6b826",
+      "id": "p17",
+      "kind": "part",
+      "name": "GoalPlatform",
+      "position": [
+        0.0,
+        11.5,
+        -96.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        12.0,
+        1.0,
+        12.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#e6b826",
+      "id": "p18",
+      "kind": "part",
+      "name": "GoalPillar",
+      "position": [
+        0.0,
+        16.0,
+        -96.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.0,
+        8.0,
+        2.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#ffffff",
+      "id": "p19",
+      "kind": "goal",
+      "name": "Goal",
+      "position": [
+        0.0,
+        15.0,
+        -96.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        12.0,
+        8.0,
+        12.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#ffffff",
+      "id": "p20",
+      "kind": "label",
+      "name": "GoalLabel",
+      "position": [
+        0.0,
+        22.0,
+        -96.0
+      ],
+      "props": {
+        "font_size": 96.0,
+        "pixel_size": 0.012,
+        "text": "TRAGUARDO"
+      },
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p21",
+      "kind": "coin",
+      "name": "Coin1",
+      "position": [
+        4.0,
+        5.8,
+        -10.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p22",
+      "kind": "coin",
+      "name": "Coin2",
+      "position": [
+        -3.0,
+        7.3,
+        -19.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p23",
+      "kind": "coin",
+      "name": "Coin3",
+      "position": [
+        -4.0,
+        8.8,
+        -28.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p24",
+      "kind": "coin",
+      "name": "Coin4",
+      "position": [
+        3.0,
+        8.8,
+        -40.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p25",
+      "kind": "coin",
+      "name": "Coin5",
+      "position": [
+        0.0,
+        9.3,
+        -50.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p26",
+      "kind": "coin",
+      "name": "Coin6",
+      "position": [
+        0.0,
+        9.8,
+        -58.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p27",
+      "kind": "coin",
+      "name": "Coin7",
+      "position": [
+        5.0,
+        11.3,
+        -62.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p28",
+      "kind": "coin",
+      "name": "Coin8",
+      "position": [
+        3.0,
+        10.3,
+        -68.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p29",
+      "kind": "coin",
+      "name": "Coin9",
+      "position": [
+        0.0,
+        10.3,
+        -74.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#fad138",
+      "id": "p30",
+      "kind": "coin",
+      "name": "Coin10",
+      "position": [
+        4.0,
+        11.3,
+        -82.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.4,
+        3.2,
+        2.4
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#0d69ab",
+      "id": "p31",
+      "kind": "part",
+      "name": "PillarLeft",
+      "position": [
+        -18.0,
+        5.0,
+        18.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        10.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#4a964a",
+      "id": "p32",
+      "kind": "part",
+      "name": "PillarRight",
+      "position": [
+        18.0,
+        5.0,
+        18.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.0,
+        10.0,
+        4.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p33",
+      "kind": "part",
+      "name": "TreeTrunk1",
+      "position": [
+        -30.0,
+        2.0,
+        20.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p34",
+      "kind": "part",
+      "name": "TreeLeaves1",
+      "position": [
+        -30.0,
+        5.5,
+        20.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p35",
+      "kind": "part",
+      "name": "TreeTrunk2",
+      "position": [
+        -45.0,
+        2.0,
+        -5.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p36",
+      "kind": "part",
+      "name": "TreeLeaves2",
+      "position": [
+        -45.0,
+        5.5,
+        -5.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p37",
+      "kind": "part",
+      "name": "TreeTrunk3",
+      "position": [
+        -28.0,
+        2.0,
+        -32.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p38",
+      "kind": "part",
+      "name": "TreeLeaves3",
+      "position": [
+        -28.0,
+        5.5,
+        -32.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p39",
+      "kind": "part",
+      "name": "TreeTrunk4",
+      "position": [
+        30.0,
+        2.0,
+        18.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p40",
+      "kind": "part",
+      "name": "TreeLeaves4",
+      "position": [
+        30.0,
+        5.5,
+        18.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p41",
+      "kind": "part",
+      "name": "TreeTrunk5",
+      "position": [
+        42.0,
+        2.0,
+        -15.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p42",
+      "kind": "part",
+      "name": "TreeLeaves5",
+      "position": [
+        42.0,
+        5.5,
+        -15.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p43",
+      "kind": "part",
+      "name": "TreeTrunk6",
+      "position": [
+        34.0,
+        2.0,
+        -70.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p44",
+      "kind": "part",
+      "name": "TreeLeaves6",
+      "position": [
+        34.0,
+        5.5,
+        -70.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p45",
+      "kind": "part",
+      "name": "TreeTrunk7",
+      "position": [
+        -38.0,
+        2.0,
+        -65.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p46",
+      "kind": "part",
+      "name": "TreeLeaves7",
+      "position": [
+        -38.0,
+        5.5,
+        -65.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p47",
+      "kind": "part",
+      "name": "TreeTrunk8",
+      "position": [
+        50.0,
+        2.0,
+        30.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p48",
+      "kind": "part",
+      "name": "TreeLeaves8",
+      "position": [
+        50.0,
+        5.5,
+        30.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p49",
+      "kind": "part",
+      "name": "TreeTrunk9",
+      "position": [
+        -55.0,
+        2.0,
+        40.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p50",
+      "kind": "part",
+      "name": "TreeLeaves9",
+      "position": [
+        -55.0,
+        5.5,
+        40.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": true,
+      "color": "#734d29",
+      "id": "p51",
+      "kind": "part",
+      "name": "TreeTrunk10",
+      "position": [
+        20.0,
+        2.0,
+        45.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": true,
+      "collide": false,
+      "color": "#216b29",
+      "id": "p52",
+      "kind": "part",
+      "name": "TreeLeaves10",
+      "position": [
+        20.0,
+        5.5,
+        45.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        4.5,
+        3.5,
+        4.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": false,
+      "collide": true,
+      "color": "#c4291c",
+      "id": "p53",
+      "kind": "part",
+      "name": "FreePart1",
+      "position": [
+        14.0,
+        8.0,
+        4.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.5,
+        2.5,
+        2.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": false,
+      "collide": true,
+      "color": "#3da8c9",
+      "id": "p54",
+      "kind": "part",
+      "name": "FreePart2",
+      "position": [
+        15.5,
+        12.0,
+        5.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.5,
+        2.5,
+        2.5
+      ],
+      "transparency": 0.0
+    },
+    {
+      "anchored": false,
+      "collide": true,
+      "color": "#e6b826",
+      "id": "p55",
+      "kind": "part",
+      "name": "FreePart3",
+      "position": [
+        13.0,
+        16.0,
+        3.0
+      ],
+      "props": {},
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        2.5,
+        2.5,
+        2.5
+      ],
+      "transparency": 0.0
+    }
+  ],
+  "scripts": [],
+  "version": 1
+}

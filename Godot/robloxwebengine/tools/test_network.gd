@@ -23,6 +23,11 @@ func _run() -> void:
 	root.add_child(_main)
 	await process_frame
 
+	var level_data := LevelIO.load_default()
+	print("TEST livello predefinito caricato: ", not level_data.is_empty())
+	_main.start_level(level_data)
+	await process_frame
+
 	_main.get_node("Menu").play_pressed.emit()
 	await process_frame
 

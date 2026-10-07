@@ -49,58 +49,58 @@ roughness = 0.85
 [sub_resource type="BoxMesh" id="BoxMesh_f1c6i"]
 size = Vector3(1, 2, 1)
 
-[node name="Character" type="CharacterBody3D" unique_id=821179048]
+[node name="Character" type="CharacterBody3D" unique_id=2093052514]
 script = ExtResource("1_ntlox")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=1053836461]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=981225416]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
 shape = SubResource("CapsuleShape3D_p42bw")
 
-[node name="Visual" type="Node3D" parent="." unique_id=46837943]
+[node name="Visual" type="Node3D" parent="." unique_id=749691237]
 
-[node name="Torso" type="MeshInstance3D" parent="Visual" unique_id=667199909]
+[node name="Torso" type="MeshInstance3D" parent="Visual" unique_id=184732191]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
 material_override = SubResource("StandardMaterial3D_s4akd")
 mesh = SubResource("BoxMesh_1u06v")
 
-[node name="Head" type="MeshInstance3D" parent="Visual" unique_id=508009058]
+[node name="Head" type="MeshInstance3D" parent="Visual" unique_id=1596261914]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.625, 0)
 material_override = SubResource("StandardMaterial3D_ce53v")
 mesh = SubResource("BoxMesh_r3yea")
 
-[node name="ArmL" type="Node3D" parent="Visual" unique_id=2049193388]
+[node name="ArmL" type="Node3D" parent="Visual" unique_id=1569958591]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 4, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmL" unique_id=991390578]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmL" unique_id=425591202]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_a78sl")
 mesh = SubResource("BoxMesh_rtcqn")
 
-[node name="ArmR" type="Node3D" parent="Visual" unique_id=275978275]
+[node name="ArmR" type="Node3D" parent="Visual" unique_id=1408634845]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 4, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmR" unique_id=1946649059]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmR" unique_id=1775614238]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_w1o0g")
 mesh = SubResource("BoxMesh_svjlq")
 
-[node name="LegL" type="Node3D" parent="Visual" unique_id=342026123]
+[node name="LegL" type="Node3D" parent="Visual" unique_id=1071127949]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 2, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/LegL" unique_id=1538756290]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/LegL" unique_id=964465648]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_4m4ec")
 mesh = SubResource("BoxMesh_12l8s")
 
-[node name="LegR" type="Node3D" parent="Visual" unique_id=2041737171]
+[node name="LegR" type="Node3D" parent="Visual" unique_id=1120729874]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 2, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/LegR" unique_id=670820559]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/LegR" unique_id=1269642074]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_br1b2")
 mesh = SubResource("BoxMesh_f1c6i")
 
-[node name="NameTag" type="Label3D" parent="Visual" unique_id=1962852542]
+[node name="NameTag" type="Label3D" parent="Visual" unique_id=2074104065]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.2, 0)
 pixel_size = 0.01
 billboard = 1
@@ -108,20 +108,20 @@ text = "Giocatore"
 font_size = 64
 outline_size = 16
 
-[node name="JumpSound" type="AudioStreamPlayer3D" parent="." unique_id=1269062058]
+[node name="JumpSound" type="AudioStreamPlayer3D" parent="." unique_id=149738339]
 max_distance = 60.0
 
-[node name="LandSound" type="AudioStreamPlayer3D" parent="." unique_id=819311966]
+[node name="LandSound" type="AudioStreamPlayer3D" parent="." unique_id=113092402]
 max_distance = 60.0
 
-[node name="CameraRig" type="Node3D" parent="." unique_id=719286637]
+[node name="CameraRig" type="Node3D" parent="." unique_id=806779273]
 top_level = true
 script = ExtResource("2_unmdi")
 
-[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig" unique_id=193990767]
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig" unique_id=893605845]
 spring_length = 12.0
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D" unique_id=670600945]
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D" unique_id=1936369957]
 current = true
 fov = 70.0
 near = 0.1

@@ -44,54 +44,54 @@ roughness = 0.85
 [sub_resource type="BoxMesh" id="BoxMesh_k1ndf"]
 size = Vector3(1, 2, 1)
 
-[node name="RemoteCharacter" type="Node3D" unique_id=373217435]
+[node name="RemoteCharacter" type="Node3D" unique_id=1889703032]
 script = ExtResource("1_k8nor")
 
-[node name="Visual" type="Node3D" parent="." unique_id=1217276029]
+[node name="Visual" type="Node3D" parent="." unique_id=1531405588]
 
-[node name="Torso" type="MeshInstance3D" parent="Visual" unique_id=1423012994]
+[node name="Torso" type="MeshInstance3D" parent="Visual" unique_id=1371812135]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
 material_override = SubResource("StandardMaterial3D_ufi3p")
 mesh = SubResource("BoxMesh_2n688")
 
-[node name="Head" type="MeshInstance3D" parent="Visual" unique_id=1591462557]
+[node name="Head" type="MeshInstance3D" parent="Visual" unique_id=2109543417]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.625, 0)
 material_override = SubResource("StandardMaterial3D_ev5ua")
 mesh = SubResource("BoxMesh_cwa2u")
 
-[node name="ArmL" type="Node3D" parent="Visual" unique_id=1617766784]
+[node name="ArmL" type="Node3D" parent="Visual" unique_id=994753823]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 4, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmL" unique_id=1725160446]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmL" unique_id=1585301906]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_paapv")
 mesh = SubResource("BoxMesh_rgt6n")
 
-[node name="ArmR" type="Node3D" parent="Visual" unique_id=914425664]
+[node name="ArmR" type="Node3D" parent="Visual" unique_id=2093414221]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 4, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmR" unique_id=1488920344]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmR" unique_id=2064312010]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_bcxnl")
 mesh = SubResource("BoxMesh_wgrlh")
 
-[node name="LegL" type="Node3D" parent="Visual" unique_id=1995233332]
+[node name="LegL" type="Node3D" parent="Visual" unique_id=791702068]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 2, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/LegL" unique_id=716432052]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/LegL" unique_id=144180173]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_q2ql7")
 mesh = SubResource("BoxMesh_mvniu")
 
-[node name="LegR" type="Node3D" parent="Visual" unique_id=824888374]
+[node name="LegR" type="Node3D" parent="Visual" unique_id=727079798]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 2, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Visual/LegR" unique_id=533451208]
+[node name="Mesh" type="MeshInstance3D" parent="Visual/LegR" unique_id=888589181]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 material_override = SubResource("StandardMaterial3D_exvwu")
 mesh = SubResource("BoxMesh_k1ndf")
 
-[node name="NameTag" type="Label3D" parent="Visual" unique_id=1061729027]
+[node name="NameTag" type="Label3D" parent="Visual" unique_id=83997087]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.2, 0)
 pixel_size = 0.01
 billboard = 1

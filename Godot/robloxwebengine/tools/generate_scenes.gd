@@ -16,6 +16,9 @@ const MENU_SCRIPT := preload("res://scripts/ui/menu.gd")
 const HUD_SCRIPT := preload("res://scripts/ui/hud.gd")
 const MAIN_SCRIPT := preload("res://scripts/main.gd")
 const NET_CLIENT_SCRIPT := preload("res://scripts/net/net_client.gd")
+const LEVEL_SELECT_SCRIPT := preload("res://scripts/ui/level_select.gd")
+const EDITOR_SCRIPT := preload("res://scripts/editor/editor.gd")
+const EDITOR_CAMERA_SCRIPT := preload("res://scripts/editor/editor_camera.gd")
 
 # Colori in stile Roblox (RGB 0-1)
 const YELLOW := Color(0.96, 0.80, 0.19)
@@ -29,18 +32,23 @@ const GOLD := Color(0.90, 0.72, 0.15)
 const CYAN := Color(0.24, 0.66, 0.79)
 const LAVA_RED := Color(0.85, 0.12, 0.05)
 const CHECKPOINT_OFF := Color(0.15, 0.45, 0.90)
+const TRUNK_BROWN := Color(0.45, 0.30, 0.16)
+const LEAVES_GREEN := Color(0.13, 0.42, 0.16)
 
 
 func _init() -> void:
 	DirAccess.make_dir_recursive_absolute("res://scenes/world")
 	DirAccess.make_dir_recursive_absolute("res://scenes/player")
 	DirAccess.make_dir_recursive_absolute("res://scenes/ui")
+	DirAccess.make_dir_recursive_absolute("res://scenes/editor")
 
 	_save_scene(_build_world(), "res://scenes/world/baseplate.tscn")
 	_save_scene(_build_character(), "res://scenes/player/character.tscn")
 	_save_scene(_build_remote_character(), "res://scenes/player/remote_character.tscn")
 	_save_scene(_build_menu(), "res://scenes/ui/menu.tscn")
 	_save_scene(_build_hud(), "res://scenes/ui/hud.tscn")
+	_save_scene(_build_level_select(), "res://scenes/ui/level_select.tscn")
+	_save_scene(_build_editor(), "res://scenes/editor/editor.tscn")
 	_save_scene(_build_main(), "res://scenes/main.tscn")
 	quit()
 
@@ -134,15 +142,23 @@ func _build_world() -> Node3D:
 	for i in coin_positions.size():
 		world.add_child(_collectible("Coin%d" % (i + 1), coin_positions[i]))
 
-	# Decorazioni: pilastri e alberi a cubetti.
+	# Decorazioni: pilastri e alberi a cubetti (parti piatte, serializzabili).
 	world.add_child(_part("PillarLeft", Vector3(4, 10, 4), TORSO_BLUE, Vector3(-18, 5, 18)))
 	world.add_child(_part("PillarRight", Vector3(4, 10, 4), LEG_GREEN, Vector3(18, 5, 18)))
-	for tree_position in [
+	var tree_positions: Array[Vector3] = [
 		Vector3(-30, 0, 20), Vector3(-45, 0, -5), Vector3(-28, 0, -32),
 		Vector3(30, 0, 18), Vector3(42, 0, -15), Vector3(34, 0, -70),
 		Vector3(-38, 0, -65), Vector3(50, 0, 30), Vector3(-55, 0, 40), Vector3(20, 0, 45),
-	]:
-		world.add_child(_tree(tree_position))
+	]
+	for i in tree_positions.size():
+		var tree_position := tree_positions[i]
+		world.add_child(_part(
+			"TreeTrunk%d" % (i + 1), Vector3(1, 4, 1), TRUNK_BROWN, tree_position + Vector3(0, 2, 0)
+		))
+		world.add_child(_part(
+			"TreeLeaves%d" % (i + 1), Vector3(4.5, 3.5, 4.5), LEAVES_GREEN,
+			tree_position + Vector3(0, 5.5, 0), true, false
+		))
 
 	# Parti libere: cadono e si impilano (demo fisica Jolt).
 	world.add_child(_part("FreePart1", Vector3(2.5, 2.5, 2.5), RED, Vector3(14, 8, 4), false))
@@ -292,6 +308,14 @@ func _build_menu() -> CanvasLayer:
 	subtitle.add_theme_color_override("font_color", Color(0.65, 0.70, 0.78))
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(subtitle)
+
+	var level_label := Label.new()
+	level_label.name = "LevelLabel"
+	level_label.text = "Livello: —"
+	level_label.add_theme_font_size_override("font_size", 22)
+	level_label.add_theme_color_override("font_color", Color(0.85, 0.88, 0.95))
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(level_label)
 
 	var play_button := Button.new()
 	play_button.name = "PlayButton"
@@ -447,12 +471,18 @@ func _build_main() -> Node:
 	main.name = "Main"
 	main.set_script(MAIN_SCRIPT)
 
-	var world := (load("res://scenes/world/baseplate.tscn") as PackedScene).instantiate()
+	# Mondo vuoto: viene costruito da LevelBuilder in base al livello scelto.
+	var world := Node3D.new()
 	world.name = "World"
 	main.add_child(world)
 
+	var level_select := (load("res://scenes/ui/level_select.tscn") as PackedScene).instantiate()
+	level_select.name = "LevelSelect"
+	main.add_child(level_select)
+
 	var menu := (load("res://scenes/ui/menu.tscn") as PackedScene).instantiate()
 	menu.name = "Menu"
+	menu.visible = false
 	main.add_child(menu)
 
 	var hud := (load("res://scenes/ui/hud.tscn") as PackedScene).instantiate()
@@ -470,6 +500,109 @@ func _build_main() -> Node:
 	main.add_child(net)
 
 	return main
+
+
+func _build_level_select() -> CanvasLayer:
+	var select := CanvasLayer.new()
+	select.name = "LevelSelect"
+	select.set_script(LEVEL_SELECT_SCRIPT)
+
+	var background := ColorRect.new()
+	background.name = "Background"
+	background.color = Color(0.07, 0.09, 0.13)
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	select.add_child(background)
+
+	var center := CenterContainer.new()
+	center.name = "Center"
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	select.add_child(center)
+
+	var vbox := VBoxContainer.new()
+	vbox.name = "VBox"
+	vbox.add_theme_constant_override("separation", 14)
+	center.add_child(vbox)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "ROBLOX WEB ENGINE"
+	title.add_theme_font_size_override("font_size", 52)
+	title.add_theme_color_override("font_color", Color(1, 1, 1))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.name = "Subtitle"
+	subtitle.text = "Scegli il livello da giocare"
+	subtitle.add_theme_font_size_override("font_size", 20)
+	subtitle.add_theme_color_override("font_color", Color(0.65, 0.70, 0.78))
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(subtitle)
+
+	var default_button := Button.new()
+	default_button.name = "DefaultButton"
+	default_button.text = "Gioca il livello predefinito"
+	default_button.add_theme_font_size_override("font_size", 24)
+	default_button.custom_minimum_size = Vector2(420, 56)
+	vbox.add_child(default_button)
+
+	var load_button := Button.new()
+	load_button.name = "LoadButton"
+	load_button.text = "Carica livello da file (.json)"
+	load_button.add_theme_font_size_override("font_size", 24)
+	load_button.custom_minimum_size = Vector2(420, 56)
+	vbox.add_child(load_button)
+
+	var editor_button := Button.new()
+	editor_button.name = "EditorButton"
+	editor_button.text = "Crea un livello (Editor)"
+	editor_button.add_theme_font_size_override("font_size", 24)
+	editor_button.custom_minimum_size = Vector2(420, 56)
+	vbox.add_child(editor_button)
+
+	var status := Label.new()
+	status.name = "Status"
+	status.text = ""
+	status.add_theme_font_size_override("font_size", 16)
+	status.add_theme_color_override("font_color", Color(0.95, 0.75, 0.45))
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.custom_minimum_size = Vector2(420, 0)
+	vbox.add_child(status)
+
+	var hint := Label.new()
+	hint.name = "Hint"
+	hint.text = "Il livello è un unico file .json: senza server, per giocare in multiplayer\nogni giocatore deve caricare lo stesso file."
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_color_override("font_color", Color(0.50, 0.55, 0.63))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(hint)
+
+	return select
+
+
+func _build_editor() -> Node3D:
+	var editor := Node3D.new()
+	editor.name = "Editor"
+	editor.set_script(EDITOR_SCRIPT)
+
+	var world := Node3D.new()
+	world.name = "World"
+	editor.add_child(world)
+
+	var camera := Camera3D.new()
+	camera.name = "EditorCamera"
+	camera.set_script(EDITOR_CAMERA_SCRIPT)
+	camera.position = Vector3(48, 34, 48)
+	camera.rotation_degrees = Vector3(-25, 45, 0)
+	camera.far = 4000.0
+	editor.add_child(camera)
+
+	var ui := CanvasLayer.new()
+	ui.name = "UI"
+	editor.add_child(ui)
+
+	return editor
 
 
 # --- Parti speciali ----------------------------------------------------------------
@@ -624,10 +757,17 @@ func _tree(position: Vector3) -> Node3D:
 
 # --- Helper --------------------------------------------------------------------
 
-func _part(node_name: String, size: Vector3, color: Color, position: Vector3, anchored := true) -> Node3D:
+func _part(
+	node_name: String, size: Vector3, color: Color, position: Vector3,
+	anchored := true, collide := true
+) -> Node3D:
 	var part := PART_FACTORY.make_part(size, color, anchored)
 	part.name = node_name
 	part.position = position
+	if not collide:
+		var collision := part.get_node_or_null("Collision") as CollisionShape3D
+		if collision:
+			collision.disabled = true
 	return part
 
 

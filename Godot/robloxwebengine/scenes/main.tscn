@@ -1,26 +1,31 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_o6xl0"]
-[ext_resource type="PackedScene" path="res://scenes/world/baseplate.tscn" id="2_tipki"]
-[ext_resource type="PackedScene" path="res://scenes/ui/menu.tscn" id="3_85g3d"]
-[ext_resource type="Script" path="res://scripts/ui/menu.gd" id="4_choun"]
-[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="5_ya4ey"]
-[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="6_eb6dy"]
-[ext_resource type="Script" path="res://scripts/net/net_client.gd" id="7_trceg"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_tipki"]
+[ext_resource type="PackedScene" path="res://scenes/ui/level_select.tscn" id="2_85g3d"]
+[ext_resource type="Script" path="res://scripts/ui/level_select.gd" id="3_choun"]
+[ext_resource type="PackedScene" path="res://scenes/ui/menu.tscn" id="4_ya4ey"]
+[ext_resource type="Script" path="res://scripts/ui/menu.gd" id="5_eb6dy"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="6_trceg"]
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="7_a8y0u"]
+[ext_resource type="Script" path="res://scripts/net/net_client.gd" id="8_jkv2x"]
 
-[node name="Main" type="Node" unique_id=723599676]
-script = ExtResource("1_o6xl0")
+[node name="Main" type="Node" unique_id=104934365]
+script = ExtResource("1_tipki")
 
-[node name="World" type="Node3D" parent="." unique_id=1335857270 instance=ExtResource("2_tipki")]
+[node name="World" type="Node3D" parent="." unique_id=157941212]
 
-[node name="Menu" type="CanvasLayer" parent="." unique_id=1262992337 instance=ExtResource("3_85g3d")]
-script = ExtResource("4_choun")
+[node name="LevelSelect" type="CanvasLayer" parent="." unique_id=1865114409 instance=ExtResource("2_85g3d")]
+script = ExtResource("3_choun")
 
-[node name="HUD" type="CanvasLayer" parent="." unique_id=801282672 instance=ExtResource("5_ya4ey")]
+[node name="Menu" type="CanvasLayer" parent="." unique_id=171151979 instance=ExtResource("4_ya4ey")]
 visible = false
-script = ExtResource("6_eb6dy")
+script = ExtResource("5_eb6dy")
 
-[node name="GlobalSound" type="AudioStreamPlayer" parent="." unique_id=1391887496]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1051271253 instance=ExtResource("6_trceg")]
+visible = false
+script = ExtResource("7_a8y0u")
 
-[node name="NetClient" type="Node" parent="." unique_id=1235212656]
-script = ExtResource("7_trceg")
+[node name="GlobalSound" type="AudioStreamPlayer" parent="." unique_id=53287117]
+
+[node name="NetClient" type="Node" parent="." unique_id=2048188335]
+script = ExtResource("8_jkv2x")

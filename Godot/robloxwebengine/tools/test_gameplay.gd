@@ -13,7 +13,14 @@ func _run() -> void:
 	await process_frame
 
 	var menu: CanvasLayer = main.get_node("Menu")
-	print("TEST menu visibile all'avvio: ", menu.visible)
+	print("TEST schermata selezione visibile all'avvio: ", main.level_select.visible)
+	print("TEST menu nascosto all'avvio: ", not menu.visible)
+
+	var level_data := LevelIO.load_default()
+	print("TEST livello predefinito caricato: ", not level_data.is_empty())
+	main.start_level(level_data)
+	print("TEST parti nel mondo: ", main.world.get_child_count())
+	await process_frame
 
 	menu.play_pressed.emit()
 	await process_frame
