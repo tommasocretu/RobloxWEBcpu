@@ -1,0 +1,100 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/player/remote_character.gd" id="1_k8nor"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ufi3p"]
+albedo_color = Color(0.05, 0.41, 0.67, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_2n688"]
+size = Vector3(2, 2, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ev5ua"]
+albedo_color = Color(0.96, 0.8, 0.19, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_cwa2u"]
+size = Vector3(1.25, 1.25, 1.25)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_paapv"]
+albedo_color = Color(0.96, 0.8, 0.19, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_rgt6n"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bcxnl"]
+albedo_color = Color(0.96, 0.8, 0.19, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_wgrlh"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_q2ql7"]
+albedo_color = Color(0.29, 0.59, 0.29, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_mvniu"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_exvwu"]
+albedo_color = Color(0.29, 0.59, 0.29, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_k1ndf"]
+size = Vector3(1, 2, 1)
+
+[node name="RemoteCharacter" type="Node3D" unique_id=373217435]
+script = ExtResource("1_k8nor")
+
+[node name="Visual" type="Node3D" parent="." unique_id=1217276029]
+
+[node name="Torso" type="MeshInstance3D" parent="Visual" unique_id=1423012994]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+material_override = SubResource("StandardMaterial3D_ufi3p")
+mesh = SubResource("BoxMesh_2n688")
+
+[node name="Head" type="MeshInstance3D" parent="Visual" unique_id=1591462557]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.625, 0)
+material_override = SubResource("StandardMaterial3D_ev5ua")
+mesh = SubResource("BoxMesh_cwa2u")
+
+[node name="ArmL" type="Node3D" parent="Visual" unique_id=1617766784]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmL" unique_id=1725160446]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+material_override = SubResource("StandardMaterial3D_paapv")
+mesh = SubResource("BoxMesh_rgt6n")
+
+[node name="ArmR" type="Node3D" parent="Visual" unique_id=914425664]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visual/ArmR" unique_id=1488920344]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+material_override = SubResource("StandardMaterial3D_bcxnl")
+mesh = SubResource("BoxMesh_wgrlh")
+
+[node name="LegL" type="Node3D" parent="Visual" unique_id=1995233332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 2, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visual/LegL" unique_id=716432052]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+material_override = SubResource("StandardMaterial3D_q2ql7")
+mesh = SubResource("BoxMesh_mvniu")
+
+[node name="LegR" type="Node3D" parent="Visual" unique_id=824888374]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 2, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visual/LegR" unique_id=533451208]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+material_override = SubResource("StandardMaterial3D_exvwu")
+mesh = SubResource("BoxMesh_k1ndf")
+
+[node name="NameTag" type="Label3D" parent="Visual" unique_id=1061729027]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.2, 0)
+pixel_size = 0.01
+billboard = 1
+text = "Giocatore"
+font_size = 64
+outline_size = 16

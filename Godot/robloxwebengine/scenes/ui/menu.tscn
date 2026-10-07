@@ -1,0 +1,57 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/menu.gd" id="1_7w7rl"]
+
+[node name="Menu" type="CanvasLayer" unique_id=1262992337]
+script = ExtResource("1_7w7rl")
+
+[node name="Background" type="ColorRect" parent="." unique_id=185124050]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.07, 0.09, 0.13, 1)
+
+[node name="Center" type="CenterContainer" parent="." unique_id=1154282841]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Center" unique_id=222564409]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Center/VBox" unique_id=287484048]
+layout_mode = 2
+theme_override_font_sizes/font_size = 56
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "ROBLOX WEB ENGINE"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/VBox" unique_id=1057356907]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
+text = "MVP — replica in-browser"
+horizontal_alignment = 1
+
+[node name="PlayButton" type="Button" parent="Center/VBox" unique_id=1100273101]
+custom_minimum_size = Vector2(260, 70)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Play"
+
+[node name="NameInput" type="LineEdit" parent="Center/VBox" unique_id=1698289041]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+placeholder_text = "Il tuo nome"
+alignment = 1
+max_length = 20
+
+[node name="Controls" type="Label" parent="Center/VBox" unique_id=446157737]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+text = "WASD muoviti · Spazio salta · Tasto destro ruota la camera
+Rotella zoom · Shift shift-lock · Invio chat"
+horizontal_alignment = 1

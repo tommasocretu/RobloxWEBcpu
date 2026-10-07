@@ -1,25 +1,50 @@
-# Godot 4.2+ specific ignores
-~*.dll
+# =============================================================
+# RobloxWEBEngine — .gitignore (root del repo)
+#
+# Layout:
+#   Godot/robloxwebengine/  → progetto Godot (preset di export "Web")
+#   WEBhtml/                → sito che incorpora l'export web
+#   server/                 → relay multiplayer in Python
+#
+# I pattern con "/" centrale (es. Godot/robloxwebengine/.godot/)
+# sono ancorati alla root e puntano alle cartelle reali del progetto.
+# =============================================================
 
-# Godot 4+ specific ignores
-.godot/
-.nomedia
+# --- Godot: Godot/robloxwebengine/ ---------------------------
 
-# Godot-specific ignores
-.import/
-export.cfg
-export_credentials.cfg
-*.tmp
+# Cache e dati di import dell'editor (rigenerati all'apertura del progetto)
+Godot/robloxwebengine/.godot/
+Godot/robloxwebengine/.import/
 
-# Imported translations (automatically generated from CSV files)
-*.translation
+# File di export locale / credenziali
+Godot/robloxwebengine/export.cfg
+Godot/robloxwebengine/export_credentials.cfg
 
-# Mono-specific ignores
-.mono/
-data_*/
-mono_crash.*.json
+# Traduzioni importate (generate dai CSV)
+Godot/robloxwebengine/*.translation
 
-# Export outputs
-*.exe
-# Uncomment if your project does not version PCK files as runtime dependencies.
-# *.pck
+# Binari esportati per il desktop
+Godot/robloxwebengine/*.exe
+Godot/robloxwebengine/*.dll
+Godot/robloxwebengine/*.so
+Godot/robloxwebengine/*.dylib
+
+# Mono / C# (non usato, per sicurezza)
+Godot/robloxwebengine/.mono/
+Godot/robloxwebengine/data_*/
+
+# --- Export web: WEBhtml/ ------------------------------------
+
+# Output dell'export "Web" (export_path in export_presets.cfg).
+# Generato: si ricrea con l'export Godot, non va versionato.
+WEBhtml/dev/
+
+# --- Server Python: server/ ----------------------------------
+
+__pycache__/
+*.py[cod]
+
+# --- Sistema / editor ----------------------------------------
+
+.DS_Store
+Thumbs.db

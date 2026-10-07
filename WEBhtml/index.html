@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RobloxWebEngine</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #0a0d14;
+    font-family: system-ui, sans-serif;
+  }
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+  }
+  #hint {
+    position: fixed;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #5a6373;
+    font-size: 12px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<!-- Il gioco è l'export Web di Godot (cartella dev/ per lo sviluppo).
+     Per puntare a un server multiplayer diverso: dev/index.html?server=wss://esempio.org:9080 -->
+<iframe id="game" src="dev/index.html" allow="autoplay; fullscreen; gamepad"></iframe>
+<div id="hint">RobloxWebEngine — build di sviluppo</div>
+</body>
+</html>
