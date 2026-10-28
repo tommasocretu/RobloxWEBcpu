@@ -1,8 +1,7 @@
 class_name NetClient
 extends Node
-## Client WebSocket verso il server di relay multiplayer (server/server.py).
-## Invia "hello" appena connesso, poi lo stato del giocatore a intervalli.
-## Si riconnette da solo ogni pochi secondi se il server non è raggiungibile.
+## Client WebSocket verso il relay multiplayer (server/relay.py).
+## La connessione web usa un ticket HMAC ricevuto da /api/places/<id>/play.
 
 signal connected
 signal disconnected
@@ -11,8 +10,9 @@ signal peer_joined(id: int, player_name: String)
 signal peer_left(id: int)
 signal peer_state(id: int, position: Vector3, yaw: float, speed: float)
 signal chat_received(sender_name: String, text: String)
+signal server_error(code: String, message: String)
 
-const DEFAULT_URL := "ws://127.0.0.1:9080"
+const DEFAULT_URL := "ws://127.0.0.1:9081"
 const RETRY_INTERVAL := 3.0
 
 var player_name := "Giocatore"
@@ -20,6 +20,7 @@ var my_id := -1
 
 var _socket := WebSocketPeer.new()
 var _url := ""
+var _ticket := ""
 var _enabled := false
 var _was_open := false
 var _reported_failure := false
@@ -33,8 +34,17 @@ func start(url: String) -> void:
 	_connect()
 
 
+## Connessione autenticata: il server identifica giocatore e place dal ticket.
+func start_with_ticket(url: String, ticket: String, name: String) -> void:
+	_ticket = ticket
+	if name != "":
+		player_name = name
+	start(url)
+
+
 func stop() -> void:
 	_enabled = false
+	_ticket = ""
 	if _socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
 		_socket.close()
 
@@ -73,7 +83,10 @@ func _process(delta: float) -> void:
 				_was_open = true
 				_reported_failure = false
 				my_id = -1
-				_send({"type": "hello", "name": player_name})
+				if _ticket != "":
+					_send({"type": "hello", "ticket": _ticket})
+				else:
+					_send({"type": "hello", "name": player_name})
 				connected.emit()
 			while _socket.get_available_packet_count() > 0:
 				_handle_message(_socket.get_packet().get_string_from_utf8())
@@ -117,6 +130,10 @@ func _handle_message(text: String) -> void:
 			_emit_peer_state(message)
 		"chat":
 			chat_received.emit(str(message.get("name", "?")), str(message.get("text", "")))
+		"error":
+			server_error.emit(
+				str(message.get("code", "error")), str(message.get("message", "Errore del server."))
+			)
 
 
 func _emit_peer_state(message: Dictionary) -> void:

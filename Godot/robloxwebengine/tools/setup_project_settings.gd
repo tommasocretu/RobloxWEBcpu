@@ -16,7 +16,7 @@ func _init() -> void:
 	for action in ACTIONS:
 		_set_action(action, ACTIONS[action])
 	ProjectSettings.set_setting("physics/3d/default_gravity", 196.2)
-	ProjectSettings.set_setting("net/server_url", "ws://127.0.0.1:9080")
+	ProjectSettings.set_setting("net/server_url", "ws://127.0.0.1:9081")
 	var err := ProjectSettings.save()
 	print("PROJECT_SETTINGS_SAVED err=%d" % err)
 	quit()

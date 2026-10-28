@@ -3,36 +3,104 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RobloxWebEngine</title>
-<style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: #0a0d14;
-    font-family: system-ui, sans-serif;
-  }
-  #game {
-    display: block;
-    width: 100vw;
-    height: 100vh;
-    border: 0;
-  }
-  #hint {
-    position: fixed;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #5a6373;
-    font-size: 12px;
-    pointer-events: none;
-  }
-</style>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<title>RobloxWeb — Esperienze</title>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js"></script>
 </head>
 <body>
-<!-- Il gioco è l'export Web di Godot (cartella dev/ per lo sviluppo).
-     Per puntare a un server multiplayer diverso: dev/index.html?server=wss://esempio.org:9080 -->
-<iframe id="game" src="dev/index.html" allow="autoplay; fullscreen; gamepad"></iframe>
-<div id="hint">RobloxWebEngine — build di sviluppo</div>
+<header class="site-header" id="site-header"></header>
+<main class="container">
+  <section class="hero">
+    <div>
+      <h1>Scopri e gioca esperienze create dalla community.</h1>
+      <p>Obby, parkour e mondi costruiti con RobloxWeb Studio. Entra come ospite o accedi per ritrovare il tuo profilo.</p>
+      <div class="hero-actions" id="hero-actions">
+        <a class="btn btn-primary btn-big" href="/login.html">Accedi o registrati</a>
+        <a class="btn btn-big" href="#esperienze">Sfoglia esperienze</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="esperienze">
+    <div class="section-head">
+      <h2 id="section-title">Popolari</h2>
+      <div class="main-nav" id="sort-nav">
+        <a href="#" data-sort="popular">Popolari</a>
+        <a href="#" data-sort="recent">Recenti</a>
+      </div>
+    </div>
+    <div class="alert" id="home-alert" hidden></div>
+    <div class="card-grid" id="places-grid"></div>
+    <div class="empty" id="places-empty" hidden>Nessuna esperienza trovata.</div>
+  </section>
+</main>
+<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti. Progetto locale in sviluppo.</footer>
+
+<script>
+(async function () {
+  const grid = document.getElementById("places-grid");
+  const empty = document.getElementById("places-empty");
+  const alertBox = document.getElementById("home-alert");
+  const title = document.getElementById("section-title");
+  const query = RW.qs("q") || "";
+  let sort = "popular";
+
+  if (query) {
+    title.textContent = 'Risultati per "' + query + '"';
+  }
+
+  const user = await RW.me();
+  if (user) {
+    document.getElementById("hero-actions").innerHTML =
+      '<a class="btn btn-primary btn-big" href="/profile.html">Ciao, ' + RW.escape(user.name) + '</a>' +
+      '<a class="btn btn-big" href="#esperienze">Sfoglia esperienze</a>';
+  } else {
+    document.getElementById("hero-actions").innerHTML =
+      '<a class="btn btn-primary btn-big" href="/login.html">Accedi o registrati</a>' +
+      '<button class="btn btn-big" id="hero-guest" type="button">Continua come ospite</button>';
+    document.getElementById("hero-guest").addEventListener("click", async (event) => {
+      event.currentTarget.disabled = true;
+      const result = await RW.startGuest("/");
+      if (!result.ok) {
+        event.currentTarget.disabled = false;
+        RW.setAlert(alertBox, result.error, "error");
+      }
+    });
+  }
+
+  async function load() {
+    grid.innerHTML = '<div class="empty">Caricamento…</div>';
+    empty.hidden = true;
+    const params = new URLSearchParams({ sort });
+    if (query) params.set("q", query);
+    const result = await RW.api("/api/places?" + params.toString());
+    if (!result.ok) {
+      grid.innerHTML = "";
+      RW.setAlert(alertBox, result.error, "error");
+      return;
+    }
+    RW.setAlert(alertBox, "", "error");
+    const items = result.data.places || [];
+    grid.innerHTML = items.map(RW.card).join("");
+    empty.hidden = items.length > 0;
+    document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
+      link.style.color = link.dataset.sort === sort ? "#fff" : "";
+      link.style.fontWeight = link.dataset.sort === sort ? "700" : "";
+    });
+  }
+
+  document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      sort = link.dataset.sort;
+      load();
+    });
+  });
+
+  await RW.initHeader();
+  await load();
+})();
+</script>
 </body>
 </html>

@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="6_trceg"]
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="7_a8y0u"]
 [ext_resource type="Script" path="res://scripts/net/net_client.gd" id="8_jkv2x"]
+[ext_resource type="Script" path="res://scripts/net/place_client.gd" id="9_place"]
 
 [node name="Main" type="Node" unique_id=104934365]
 script = ExtResource("1_tipki")
@@ -29,3 +30,6 @@ script = ExtResource("7_a8y0u")
 
 [node name="NetClient" type="Node" parent="." unique_id=2048188335]
 script = ExtResource("8_jkv2x")
+
+[node name="PlaceClient" type="Node" parent="." unique_id=2028291507]
+script = ExtResource("9_place")

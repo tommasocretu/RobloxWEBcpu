@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<title>Esperienza — RobloxWeb</title>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js"></script>
+</head>
+<body>
+<header class="site-header" id="site-header"></header>
+<main class="container">
+  <a class="back-link" href="/">← Torna alla home</a>
+  <div class="alert" id="place-alert" hidden></div>
+  <div id="place-content" hidden>
+    <div class="place-layout">
+      <div class="place-media" id="place-media"></div>
+      <aside class="place-info">
+        <h1 id="place-title"></h1>
+        <div class="place-author" id="place-author"></div>
+        <div class="place-stats" id="place-stats"></div>
+        <div class="play-row">
+          <a class="btn btn-primary btn-big" id="play-button" href="#">▶ Gioca</a>
+        </div>
+        <p class="place-description" id="place-description"></p>
+      </aside>
+    </div>
+  </div>
+</main>
+<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+
+<script>
+(async function () {
+  const id = RW.qs("id");
+  const alertBox = document.getElementById("place-alert");
+  const content = document.getElementById("place-content");
+
+  if (!id || !/^\d+$/.test(id)) {
+    RW.setAlert(alertBox, "Esperienza non valida. Torna alla home e scegline una.", "error");
+    return;
+  }
+
+  const result = await RW.api("/api/places/" + encodeURIComponent(id));
+  if (!result.ok) {
+    const message = result.status === 404
+      ? "Esperienza non trovata."
+      : result.status === 403
+        ? "Questa esperienza è privata."
+        : result.error;
+    RW.setAlert(alertBox, message, "error");
+    return;
+  }
+
+  const place = result.data.place;
+  document.title = place.title + " — RobloxWeb";
+  document.getElementById("place-media").innerHTML = RW.thumbHTML(place);
+  document.getElementById("place-title").textContent = place.title;
+  document.getElementById("place-author").innerHTML =
+    'di <strong>' + RW.escape(place.author) + '</strong>';
+  document.getElementById("place-stats").innerHTML =
+    '<div><strong>' + RW.formatNumber(place.visits) + '</strong>visite</div>' +
+    '<div><strong>' + RW.formatNumber(place.live_players) + '</strong>online ora</div>' +
+    '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>aggiornata</div>';
+  document.getElementById("play-button").href = "/play.html?id=" + encodeURIComponent(place.id);
+  const description = document.getElementById("place-description");
+  if (place.description) {
+    description.textContent = place.description;
+  } else {
+    description.textContent = "Nessuna descrizione.";
+    description.classList.add("muted");
+  }
+  content.hidden = false;
+  await RW.initHeader();
+})();
+</script>
+</body>
+</html>

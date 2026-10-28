@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<title>Gioca — RobloxWeb</title>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js"></script>
+</head>
+<body class="play-page">
+<header class="play-bar">
+  <a class="btn btn-ghost" id="leave-button" href="/">← Torna al sito</a>
+  <div class="play-title" id="play-title">Caricamento…</div>
+  <div class="play-author" id="play-author"></div>
+  <div class="spacer"></div>
+  <div class="small muted" id="play-player"></div>
+</header>
+
+<iframe id="game" class="game-frame" title="Client di gioco" allow="autoplay; fullscreen; gamepad" hidden></iframe>
+
+<div class="play-overlay" id="play-overlay">
+  <div class="play-card">
+    <div class="spinner" id="play-spinner"></div>
+    <h1 id="overlay-title">Preparazione dell'esperienza…</h1>
+    <p class="muted" id="overlay-message">Verifica della sessione e caricamento del client.</p>
+    <p><a class="btn" href="/" id="overlay-back">Torna al sito</a></p>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const id = RW.qs("id");
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  const overlay = document.getElementById("play-overlay");
+  const spinner = document.getElementById("play-spinner");
+  const overlayTitle = document.getElementById("overlay-title");
+  const overlayMessage = document.getElementById("overlay-message");
+  const overlayBack = document.getElementById("overlay-back");
+  const frame = document.getElementById("game");
+
+  function fail(message) {
+    spinner.hidden = true;
+    overlay.classList.remove("hidden");
+    overlayTitle.textContent = "Impossibile avviare l'esperienza";
+    overlayMessage.textContent = message;
+    overlayBack.hidden = false;
+  }
+
+  if (!id || !/^\d+$/.test(id)) {
+    fail("Esperienza non valida. Apri una pagina esperienza dal catalogo.");
+    return;
+  }
+
+  document.getElementById("leave-button").href = "/place.html?id=" + encodeURIComponent(id);
+  overlayBack.href = "/place.html?id=" + encodeURIComponent(id);
+  overlayBack.hidden = true;
+
+  const user = await RW.me();
+  if (!user) {
+    window.location.href = "/login.html?next=" + next;
+    return;
+  }
+
+  const detail = await RW.api("/api/places/" + encodeURIComponent(id));
+  if (!detail.ok) {
+    fail(detail.status === 403 ? "Questa esperienza è privata." : detail.error);
+    return;
+  }
+  const place = detail.data.place;
+  document.title = "Gioca a " + place.title + " — RobloxWeb";
+  document.getElementById("play-title").textContent = place.title;
+  document.getElementById("play-author").textContent = "di " + place.author;
+  document.getElementById("play-player").textContent =
+    (user.is_guest ? "Ospite: " : "Giocatore: ") + user.name;
+
+  // Verifica che l'export Web del client esista (altrimenti l'iframe mostrerebbe un 404).
+  try {
+    const probe = await fetch("/dev/index.html", { method: "HEAD", credentials: "same-origin" });
+    if (!probe.ok) {
+      fail("Il client Web non è disponibile. Esegui l'export Godot in WEBhtml/dev/ e riprova.");
+      return;
+    }
+  } catch (_) {
+    fail("Server non raggiungibile.");
+    return;
+  }
+
+  frame.addEventListener("load", () => {
+    setTimeout(() => overlay.classList.add("hidden"), 180);
+  });
+  frame.src = "/dev/index.html?place=" + encodeURIComponent(place.id);
+  frame.hidden = false;
+  overlayBack.hidden = true;
+
+  // Messaggi dal client Godot (JavaScriptBridge) per mostrare errori di bootstrap.
+  window.addEventListener("message", (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data && event.data.type === "rw-error") {
+      fail(String(event.data.message || "Errore di avvio del client."));
+    }
+  });
+
+  await RW.initHeader();
+})();
+</script>
+</body>
+</html>

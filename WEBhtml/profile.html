@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<title>Profilo — RobloxWeb</title>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js"></script>
+</head>
+<body>
+<header class="site-header" id="site-header"></header>
+<main class="container">
+  <section class="profile-head" id="profile-head" hidden>
+    <div class="avatar" id="profile-avatar">?</div>
+    <div>
+      <h1 id="profile-name"></h1>
+      <div class="muted" id="profile-username"></div>
+    </div>
+    <div class="profile-actions">
+      <a class="btn" href="/studio.html">RobloxWeb Studio</a>
+      <button class="btn btn-ghost" type="button" id="profile-logout">Esci</button>
+    </div>
+  </section>
+
+  <div class="alert" id="profile-alert" hidden></div>
+
+  <section>
+    <div class="section-head">
+      <h2>Le mie esperienze</h2>
+      <span class="hint">Per ora le esperienze si creano con Studio e il seed del server.</span>
+    </div>
+    <div class="card-grid" id="my-places"></div>
+    <div class="empty" id="my-places-empty" hidden></div>
+  </section>
+</main>
+<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+
+<script>
+(async function () {
+  const user = await RW.requireUser();
+  if (!user) return;
+
+  document.title = user.name + " — RobloxWeb";
+  document.getElementById("profile-head").hidden = false;
+  document.getElementById("profile-avatar").textContent = user.name.slice(0, 1).toUpperCase();
+  document.getElementById("profile-name").textContent = user.name;
+  document.getElementById("profile-username").textContent =
+    "@" + user.username + (user.is_guest ? " · account ospite" : "");
+  document.getElementById("profile-logout").addEventListener("click", () => RW.logout());
+
+  const alertBox = document.getElementById("profile-alert");
+  const grid = document.getElementById("my-places");
+  const empty = document.getElementById("my-places-empty");
+
+  if (user.is_guest) {
+    RW.setAlert(
+      alertBox,
+      "Stai usando un account ospite: le esperienze non possono essere pubblicate. " +
+      "Registrati per creare un account permanente.",
+      "warn"
+    );
+  }
+
+  const result = await RW.api("/api/me/places");
+  if (!result.ok) {
+    RW.setAlert(alertBox, result.error, "error");
+    return;
+  }
+  const items = result.data.places || [];
+  if (items.length === 0) {
+    grid.innerHTML = "";
+    empty.hidden = false;
+    empty.textContent = user.is_guest
+      ? "Gli ospiti non hanno esperienze. Registrati e usa RobloxWeb Studio per crearne una."
+      : "Non hai ancora pubblicato esperienze. Apri RobloxWeb Studio per crearne una.";
+  } else {
+    grid.innerHTML = items.map(RW.card).join("");
+  }
+
+  await RW.initHeader();
+})();
+</script>
+</body>
+</html>

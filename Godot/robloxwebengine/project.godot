@@ -59,7 +59,7 @@ toggle_shift_lock={
 
 [net]
 
-server_url="ws://127.0.0.1:9080"
+server_url="ws://127.0.0.1:9081"
 
 [physics]
 

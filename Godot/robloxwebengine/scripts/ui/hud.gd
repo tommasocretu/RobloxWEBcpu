@@ -20,6 +20,7 @@ const MESSAGE_TIME := 3.0
 
 var _message_tween: Tween
 var _chat_lines: Array[String] = []
+var _chat_enabled := true
 
 
 func _ready() -> void:
@@ -29,11 +30,25 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or chat_input.visible:
+	if not visible or chat_input.visible or not _chat_enabled:
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ENTER:
 		_open_chat()
 		get_viewport().set_input_as_handled()
+
+
+func set_chat_enabled(enabled: bool) -> void:
+	_chat_enabled = enabled
+	if not enabled:
+		_close_chat()
+		if chat_log.text.strip_edges() == "":
+			chat_log.text = "Accedi per chattare"
+	else:
+		chat_log.text = "\n".join(_chat_lines)
+
+
+func is_chat_enabled() -> bool:
+	return _chat_enabled
 
 
 func _process(_delta: float) -> void:
