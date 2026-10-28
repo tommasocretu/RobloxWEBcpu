@@ -2,11 +2,12 @@ class_name LevelEditor
 extends Node3D
 ## Editor di livelli v1: camera libera, piazzamento a click, selezione con pannello
 ## proprietà, snap a griglia, duplica/elimina, undo/redo, salva/apri file,
-## autosave in user://, test-play e pubblicazione sul server (M1).
+## autosave in user://, test-play e pubblicazione sul server (M1/M2, usato da Studio).
 
 const MAIN_SCENE_PATH := "res://scenes/main.tscn"
+const STUDIO_SCENE_PATH := "res://scenes/studio/studio_start.tscn"
 const AUTOSAVE_PATH := "user://editor_autosave.rwl.json"
-const PUBLISH_SETTINGS_PATH := "user://publish_settings.json"
+const PUBLISH_SETTINGS_PATH := PublishClient.PUBLISH_SETTINGS_PATH
 const THUMBNAIL_SIZE := Vector2i(512, 288)
 const UNDO_LIMIT := 100
 const COALESCE_MS := 800
@@ -122,6 +123,9 @@ var _publish_title_edit: LineEdit
 var _publish_description: TextEdit
 var _visibility_option: OptionButton
 var _thumbnail_check: CheckBox
+var _thumbnail_preview: TextureRect
+var _thumbnail_preview_status: Label
+var _thumbnail_preview_button: Button
 var _publish_button: Button
 var _publish_status: Label
 var _places_list: ItemList
@@ -149,12 +153,20 @@ func _ready() -> void:
 	_highlight.visible = false
 	add_child(_highlight)
 
-	var restored := LevelIO.load_from_path(AUTOSAVE_PATH)
-	if not restored.is_empty() and LevelData.validate(restored).is_empty():
-		data = restored
-		_status.text = "Sessione ripristinata dall'autosave."
+	var pending := StudioSession.take_pending()
+	var pending_message := StudioSession.take_message()
+	if not pending.is_empty() and LevelData.validate(pending).is_empty():
+		data = pending
+		_status.text = pending_message if pending_message != "" else "Livello aperto."
 	else:
-		data = LevelData.new_level()
+		if not pending.is_empty():
+			push_warning("StudioSession: il livello ricevuto non è valido, uso l'autosave.")
+		var restored := LevelIO.load_from_path(AUTOSAVE_PATH)
+		if not restored.is_empty() and LevelData.validate(restored).is_empty():
+			data = restored
+			_status.text = "Sessione ripristinata dall'autosave."
+		else:
+			data = LevelData.new_level()
 	_rebuild()
 	_refresh_properties()
 
@@ -206,7 +218,15 @@ func _build_ui() -> void:
 
 	var publish_button := _add_top_button(publish_box, "Pubblica", _open_server_window)
 	publish_button.name = "PublishButton"
-	_add_top_button(publish_box, "Dal server…", _open_my_places)
+	_add_top_button(publish_box, "Place…", _open_my_places)
+	_add_top_button(publish_box, "Account", _open_server_window)
+	if _studio_mode():
+		var script_button := _add_top_button(publish_box, "Script", _coming_soon)
+		script_button.disabled = true
+		script_button.tooltip_text = "Editor degli script: disponibile in M3"
+		var output_button := _add_top_button(publish_box, "Output", _coming_soon)
+		output_button.disabled = true
+		output_button.tooltip_text = "Console degli script: disponibile in M3"
 	_account_label = Label.new()
 	_account_label.text = "Non connesso"
 	_account_label.add_theme_font_size_override("font_size", 13)
@@ -481,6 +501,17 @@ func _rebuild() -> void:
 		_freeze_dynamics()
 	_refresh_explorer()
 	_update_highlight()
+	_update_window_title()
+
+
+func _update_window_title() -> void:
+	if not _studio_mode():
+		return
+	var suffix := LevelData.title(data)
+	if suffix != "":
+		DisplayServer.window_set_title("RobloxWeb Studio — %s" % suffix)
+	else:
+		DisplayServer.window_set_title("RobloxWeb Studio")
 
 
 func _freeze_dynamics() -> void:
@@ -953,7 +984,18 @@ func _test_play() -> void:
 
 func _exit_editor() -> void:
 	_write_autosave()
-	get_tree().change_scene_to_file(MAIN_SCENE_PATH)
+	if _studio_mode():
+		get_tree().change_scene_to_file(STUDIO_SCENE_PATH)
+	else:
+		get_tree().change_scene_to_file(MAIN_SCENE_PATH)
+
+
+func _studio_mode() -> bool:
+	return StudioSession.is_studio_build()
+
+
+func _coming_soon() -> void:
+	_status.text = "Gli script arrivano con la milestone M3."
 
 
 # --- Pubblicazione (M1) -------------------------------------------------------------
@@ -964,9 +1006,11 @@ func _open_server_window() -> void:
 	var meta := _meta()
 	_publish_title_edit.text = LevelData.title(data)
 	_publish_description.text = str(meta.get("description", ""))
+	_select_visibility(str(meta.get("visibility", "public")))
 	_update_target_label()
 	_update_account_ui()
 	_server_window.popup_centered()
+	_refresh_thumbnail_preview()
 	if _publish_client.is_logged_in():
 		_refresh_places()
 
@@ -1097,6 +1141,28 @@ func _build_server_window() -> void:
 	_thumbnail_check.text = "Aggiorna la thumbnail dalla vista attuale"
 	_thumbnail_check.button_pressed = true
 	publish_tab.add_child(_thumbnail_check)
+
+	var preview_row := HBoxContainer.new()
+	preview_row.add_theme_constant_override("separation", 10)
+	publish_tab.add_child(preview_row)
+	_thumbnail_preview = TextureRect.new()
+	_thumbnail_preview.custom_minimum_size = Vector2(256, 144)
+	_thumbnail_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_thumbnail_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_thumbnail_preview.texture = null
+	preview_row.add_child(_thumbnail_preview)
+	var preview_side := VBoxContainer.new()
+	preview_side.add_theme_constant_override("separation", 6)
+	preview_side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_row.add_child(preview_side)
+	_thumbnail_preview_button = Button.new()
+	_thumbnail_preview_button.text = "Aggiorna anteprima"
+	_thumbnail_preview_button.pressed.connect(_refresh_thumbnail_preview)
+	preview_side.add_child(_thumbnail_preview_button)
+	_thumbnail_preview_status = Label.new()
+	_thumbnail_preview_status.add_theme_font_size_override("font_size", 12)
+	_thumbnail_preview_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_side.add_child(_thumbnail_preview_status)
 
 	var publish_actions := HBoxContainer.new()
 	publish_actions.add_theme_constant_override("separation", 8)
@@ -1278,6 +1344,7 @@ func _on_publish_pressed() -> void:
 	meta["place_id"] = new_id
 	meta["title"] = title
 	meta["description"] = description
+	meta["visibility"] = visibility
 	meta["published_version"] = version
 	if _publish_client.display_name() != "":
 		meta["author"] = _publish_client.display_name()
@@ -1299,11 +1366,43 @@ func _on_publish_pressed() -> void:
 	_refresh_places()
 
 
+func _refresh_thumbnail_preview() -> void:
+	if _thumbnail_preview == null:
+		return
+	if _thumbnail_preview_button:
+		_thumbnail_preview_button.disabled = true
+	if _thumbnail_preview_status:
+		_thumbnail_preview_status.text = "Cattura della vista…"
+	var png := await _capture_thumbnail()
+	if png.is_empty():
+		_thumbnail_preview.texture = null
+		if _thumbnail_preview_status:
+			_thumbnail_preview_status.text = "Anteprima non disponibile (renderer non attivo)."
+	else:
+		var image := Image.new()
+		if image.load_png_from_buffer(png) == OK:
+			_thumbnail_preview.texture = ImageTexture.create_from_image(image)
+			if _thumbnail_preview_status:
+				_thumbnail_preview_status.text = "Anteprima %d×%d pronta." % [
+					image.get_width(), image.get_height()
+				]
+		else:
+			_thumbnail_preview.texture = null
+			if _thumbnail_preview_status:
+				_thumbnail_preview_status.text = "Impossibile leggere il PNG catturato."
+	if _thumbnail_preview_button:
+		_thumbnail_preview_button.disabled = false
+
+
 func _capture_thumbnail() -> PackedByteArray:
-	## Renderizza la vista attuale in un SubViewport 512x288 e la converte in PNG.
+	## Renderizza la vista attuale in un SubViewport 512x288 che condivide il
+	## World3D dell'editor e la converte in PNG.
 	## Best-effort: in headless o se il renderer non è pronto ritorna un buffer vuoto.
+	if DisplayServer.get_name() == "headless":
+		return PackedByteArray()
 	var viewport := SubViewport.new()
 	viewport.size = THUMBNAIL_SIZE
+	viewport.world_3d = get_world_3d()
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(viewport)
 	var snapshot_camera := Camera3D.new()
@@ -1312,7 +1411,13 @@ func _capture_thumbnail() -> PackedByteArray:
 	snapshot_camera.far = camera.far
 	viewport.add_child(snapshot_camera)
 	snapshot_camera.global_transform = camera.global_transform
+	snapshot_camera.current = true
+	var highlight_was_visible := _highlight != null and _highlight.visible
+	if _highlight:
+		_highlight.visible = false
 	await RenderingServer.frame_post_draw
+	if _highlight:
+		_highlight.visible = highlight_was_visible
 	var image := viewport.get_texture().get_image()
 	viewport.queue_free()
 	if image == null or image.is_empty():
@@ -1381,6 +1486,9 @@ func _on_open_server_place() -> void:
 	var meta: Dictionary = data.get("meta", {}) if typeof(data.get("meta")) == TYPE_DICTIONARY else {}
 	meta["place_id"] = place_id
 	meta["published_version"] = int(place.get("current_version", 0))
+	meta["title"] = str(place.get("title", LevelData.title(data)))
+	meta["description"] = str(place.get("description", ""))
+	meta["visibility"] = str(place.get("visibility", "public"))
 	if _publish_client.display_name() != "":
 		meta["author"] = _publish_client.display_name()
 	data["meta"] = meta

@@ -39,6 +39,14 @@ Godot/robloxwebengine/data_*/
 # Generato: si ricrea con l'export Godot, non va versionato.
 WEBhtml/dev/
 
+# Download di Studio copiati da build_studio.sh (binari grandi, non versionati).
+WEBhtml/downloads/
+
+# --- Export desktop: build/ -----------------------------------
+
+# Binari Studio Windows/Linux, zip e checksum generati da build_studio.sh.
+build/
+
 # --- Server Python: server/ ----------------------------------
 
 __pycache__/

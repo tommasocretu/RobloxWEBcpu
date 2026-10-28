@@ -1,6 +1,7 @@
 extends Node
 ## Launcher del gioco:
 ## - web: legge `?place=`, carica il livello dall'API e si connette al relay con un ticket;
+## - build desktop Studio (`studio` feature): schermata iniziale di Studio;
 ## - build nativa dev: LevelSelect → LevelBuilder → Menu/Play;
 ## - test play / Studio: avvio diretto con `LevelData.play_request`.
 ## Comune: checkpoint/morte/respawn, monete, traguardo, multiplayer.
@@ -8,6 +9,7 @@ extends Node
 const CHARACTER_SCENE_PATH := "res://scenes/player/character.tscn"
 const REMOTE_CHARACTER_SCENE_PATH := "res://scenes/player/remote_character.tscn"
 const EDITOR_SCENE_PATH := "res://scenes/editor/editor.tscn"
+const STUDIO_SCENE_PATH := "res://scenes/studio/studio_start.tscn"
 const SPAWN_OFFSET := Vector3(0, 5, 0)
 const MESSAGE_TIME := 3.0
 const STATE_SEND_INTERVAL := 1.0 / 15.0
@@ -70,13 +72,9 @@ func _ready() -> void:
 		level_select.visible = false
 		start_level(request)
 		_on_play_pressed()
-	elif OS.has_feature("studio"):
-		get_tree().call_deferred("change_scene_to_file", EDITOR_SCENE_PATH)
+	elif _studio_mode():
+		get_tree().call_deferred("change_scene_to_file", STUDIO_SCENE_PATH)
 	elif OS.has_feature("web"):
-		if place_client.read_query_param("editor") == "1":
-			# Editor web temporaneo (M1): la build definitiva lo esclude in M2.
-			get_tree().call_deferred("change_scene_to_file", EDITOR_SCENE_PATH)
-			return
 		# Client web: nessun LevelSelect/Menu/editor, si carica la place da `?place=`.
 		level_select.visible = false
 		menu.visible = false
@@ -85,6 +83,11 @@ func _ready() -> void:
 		place_client.start()
 	else:
 		level_select.visible = true
+
+
+func _studio_mode() -> bool:
+	## Build desktop Studio (custom feature) o anteprima in sviluppo con `-- --studio`.
+	return OS.has_feature("studio") or OS.get_cmdline_user_args().has("--studio")
 
 
 ## Costruisce il mondo a partire dai dati di un livello. Ritorna false se non validi.

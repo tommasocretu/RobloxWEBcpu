@@ -1,10 +1,14 @@
-# Server RobloxWeb (M0–M1)
+# Server RobloxWeb (M0–M2)
 
 Un solo processo Python (solo standard library) che serve:
 
 - il sito e l'API JSON su `http://127.0.0.1:9080`;
 - il relay WebSocket multi-giocatore su `ws://127.0.0.1:9081`;
 - il database SQLite e i dati locali in `server/data/` (gitignored).
+
+Il server non cambia in M2: RobloxWeb Studio (desktop) usa le stesse API M1
+(`POST /api/token`, `/api/me/places`, `/api/places/<id>/data`,
+`POST /api/places[/<id>/versions]`, thumbnail).
 
 ## Avvio
 
@@ -174,6 +178,6 @@ flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
 
 ## Deploy
 
-Resta locale in M1. L'architettura è pronta per Caddy/nginx davanti:
+Resta locale in M2. L'architettura è pronta per Caddy/nginx davanti:
 `wss://dominio/ws` → `9081`, TLS e file statici, e `ROBLOXWEB_WS_URL` per
 l'URL pubblico. Vedi M5 di `PLAN.md`.

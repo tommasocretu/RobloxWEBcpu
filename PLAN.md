@@ -4,10 +4,13 @@
 > Data: 28 ottobre 2026.
 > Prima fase da implementare nella nuova chat: **M0 — Piattaforma minima**.
 >
-> **Stato (28 ottobre 2026): M0 e M1 completati e verificati.** M0: server HTTP+WS+SQLite, sito,
-> client web, relay per place. M1: ownership, versioni, pubblicazione (API + pulsante Pubblica
-> nell'editor), thumbnail, profilo autore, contatori live aggiornati, test Python/Godot/browser.
-> Prossima milestone: **M2 — Studio desktop**.
+> **Stato (28 ottobre 2026): M0, M1 e M2 completati e verificati.** M0: server HTTP+WS+SQLite,
+> sito, client web, relay per place. M1: ownership, versioni, pubblicazione (API + pulsante
+> Pubblica nell'editor), thumbnail, profilo autore, contatori live aggiornati. M2: RobloxWeb
+> Studio desktop (start screen, login/offline, place browser, publish, thumbnail), preset
+> Linux/Windows con feature `studio`, binari e zip in `build/studio/`, download sul sito,
+> editor rimosso dal web. Test Python/Godot/browser e smoke test del binario Linux verdi.
+> Prossima milestone: **M3 — Lua sandbox**.
 >
 > Questo piano sostituisce la direzione precedente ("level select + editor dentro la build web").
 > L'obiettivo è il flusso classico Roblox: **sito → login/ospite → catalogo esperienze → Play →
@@ -373,17 +376,70 @@ script Lua, like, rollback, deploy online.
 
 ### 6.3 M2 — Studio desktop
 
-- Preset `Windows Studio` e `Linux Studio` con `custom_features="studio"`.
-- Output: `build/studio/windows/RobloxWebStudio.exe`, `build/studio/linux/RobloxWebStudio.x86_64`.
-- Start screen: Accedi / Continua offline / URL server / Le mie place.
-- Editor attuale + barra: Pubblica, Place…, Account, Script, Output.
-- Place browser (lista, download ultima versione), New/Open/Save.
-- Publish dialog (titolo, descrizione, visibilità, anteprima thumbnail).
-- Thumbnail con SubViewport e camera dedicata (512×288 PNG).
-- Test play con `play_request`.
-- Preset Web: escludere scene/script dell'editor; il launcher non li carica.
-- Script di build e istruzioni; zip Windows prodotto (non testabile qui senza Wine).
-- Test del binario Linux.
+**Obiettivo:** un'app desktop autonoma (Windows `.exe` e Linux) con schermata iniziale,
+login/offline, place browser, editor, test play e pubblicazione; il client web non
+contiene più l'editor.
+
+**Build e preset**
+
+- [x] Preset `Linux Studio` e `Windows Studio` con `custom_features="studio"` e PCK
+      incorporato; output in `build/studio/linux/` e `build/studio/windows/`.
+- [x] `build_studio.sh`: import, export Linux/Windows, zip in `WEBhtml/downloads/`,
+      `SHA256SUMS`; download collegati da `studio.html`.
+- [x] Preset Web: esclusi `scenes/editor/*`, `scripts/editor/*`, `scenes/studio/*`,
+      `scripts/studio/*` e `publish_client.gd`; nessun `?editor=1`.
+- [x] Smoke test del binario Linux headless (`STUDIO_READY`, exit 0); zip Windows
+      prodotto (da provare manualmente su Windows).
+
+**Start screen**
+
+- [x] `scenes/studio/studio_start.tscn` → `scripts/studio/studio_start.gd`.
+- [x] Accedi / Esci, URL server, username/password, stato connessione.
+- [x] Sessione Bearer persistente in `user://studio_session.json` (token + utente +
+      URL), cancellata dal logout e dai 401.
+- [x] **Continua offline (autosave)**, **Nuova esperienza**, **Apri file…**.
+- [x] **Le mie place**: elenco via `/api/me/places`, versione/visibilità, download
+      dell'ultima versione, apertura nell'editor.
+- [x] Passaggio all'editor tramite `StudioSession` (livello + messaggio di stato);
+      l'editor non ripristina l'autosave quando c'è un livello in attesa.
+
+**Editor / Studio**
+
+- [x] Barra **Pubblica / Place… / Account / Script / Output** (Script e Output sono
+      placeholder disabilitati per M3) e **Esci** verso la start screen in Studio.
+- [x] Place browser e publish dialog riusano `PublishClient` (creazione, nuove versioni,
+      ownership, visibilità, thumbnail).
+- [x] Anteprima thumbnail 512×288 nel dialog, con aggiornamento manuale; la cattura usa
+      un `SubViewport` che condivide il `World3D` e una camera dedicata.
+- [x] Metadati `place_id`, `published_version`, `visibility`, titolo e descrizione
+      conservati nel livello e nell'autosave.
+- [x] Test play via `LevelData.play_request`; Esc torna all'editor.
+- [x] Launcher: feature `studio` → start screen; in sviluppo `-- --studio` per provarla.
+
+**Test**
+
+- [x] Python: suite M0/M1 invariata e verde (nessuna modifica al server).
+- [x] Godot: `test_gameplay`, `test_level_io`, `test_editor`, `test_publish` verdi.
+- [x] Nuovo `tools/test_studio.gd`: preset, `StudioSession`, login/lista/download dalla
+      start screen, consumo del livello da parte dell'editor.
+- [x] Browser: home e catalogo ancora funzionanti; `dev/index.html?editor=1` non apre
+      più l'editor (mostra "Apri questa esperienza dal sito").
+- [x] Export Web rigenerato e ispezionato: nessun file editor/studio nel PCK.
+
+**Criteri di accettazione M2**
+
+1. `./build_studio.sh` produce il binario Linux, l'`.exe` Windows e i due zip.
+2. Il binario Linux si avvia, mostra la start screen e permette di accedere o continuare
+   offline.
+3. Da **Le mie place** si scarica l'ultima versione, si modifica e si ripubblica.
+4. **Nuova esperienza** e **Apri file…** portano all'editor; **Esci** torna alla start
+   screen.
+5. La thumbnail si vede nel dialog di pubblicazione ed è servita dal sito.
+6. Il client web non contiene l'editor e `?editor=1` non lo apre.
+7. I test Python e Godot esistenti restano verdi.
+
+**Fuori da M2:** Lua sandbox, pannello Script/Output attivo, ricerca/like, rollback,
+deploy online.
 
 ### 6.4 M3 — Lua sandbox
 
@@ -589,26 +645,31 @@ l'iframe. Il ticket resta la credenziale per il WebSocket.
 
 ### 7.6 Studio desktop
 
-- Stesso progetto Godot, preset con `custom_features="studio"`.
-- `OS.has_feature("studio")` → start screen/editor.
-- Start screen: Accedi (username/password → Bearer token salvato in `user://`), Continua offline,
-  URL server, Le mie place.
-- Editor: UI attuale + Pubblica, Place…, Account, Script, Output.
-- Place browser: `GET /api/me/places`, download `GET /api/places/<id>/versions/<v>` o
-  `GET /api/places/<id>/data`.
+Implementato in M2:
+
+- Stesso progetto Godot, preset `Linux Studio`/`Windows Studio` con `custom_features="studio"`.
+- Launcher: `OS.has_feature("studio")` (o `-- --studio`) → `scenes/studio/studio_start.tscn`.
+- Start screen (`StudioStart`): Accedi/Esci, URL server, Continua offline (autosave), Nuova
+  esperienza, Apri file, Le mie place. Sessione Bearer salvata in
+  `user://studio_session.json` e impostazioni in `user://publish_settings.json`.
+- Passaggio start screen → editor tramite `StudioSession` (statiche: livello e messaggio);
+  l'editor usa il livello in attesa e ignora l'autosave finché lo slot è pieno.
+- Editor: UI attuale + Pubblica, Place…, Account, Script, Output (gli ultimi due
+  disabilitati in M2, arrivano con M3), Esci verso la start screen.
+- Place browser: `GET /api/me/places`, download `GET /api/places/<id>/data`.
 - Publish:
   - nuova place → `POST /api/places`;
   - versione → `POST /api/places/<id>/versions`;
   - thumbnail → `POST /api/places/<id>/thumbnail`;
-  - salvare `place_id` in `meta` o in un sidecar `user://`.
-- Thumbnail: SubViewport che condivide `world_3d`, camera dedicata, render 512×288, PNG.
+  - `place_id`, `published_version`, `visibility`, titolo e descrizione salvati in `meta`.
+- Thumbnail: SubViewport che condivide il `World3D`, camera dedicata, render 512×288,
+  anteprima nel dialog, PNG best-effort in headless.
 - Test play: `LevelData.play_request` + cambio scena a `main.tscn`; Esc torna all'editor.
 - Salvataggio locale: dialog nativi; autosave esistente.
-- Preset Web: escludere `scenes/editor/*` e `scripts/editor/*`; il launcher non li carica.
-- Build:
-  - `flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine --export-release "Linux Studio" <out>`
-  - `flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine --export-release "Windows Studio" <out>`
-- Test Linux; Windows prodotto ma non eseguibile qui senza Wine.
+- Preset Web: esclusi `scenes/editor/*`, `scripts/editor/*`, `scenes/studio/*`,
+  `scripts/studio/*`, `publish_client.gd`; il launcher non li carica.
+- Build: `./build_studio.sh` (import + export + zip in `WEBhtml/downloads/` + checksum).
+- Test Linux headless; Windows prodotto ma non eseguibile qui senza Wine.
 
 ### 7.7 Lua sandbox (M3)
 
@@ -782,6 +843,8 @@ flatpak run org.godotengine.Godot --path Godot/robloxwebengine
 ```bash
 flatpak run org.godotengine.Godot --headless \
   --path Godot/robloxwebengine --script res://tools/test_gameplay.gd
+# con il server attivo:
+#   res://tools/test_publish.gd, res://tools/test_studio.gd
 ```
 
 ### Test Python
@@ -791,6 +854,12 @@ python3 -m unittest discover -s server/tests -v
 ```
 
 ### Export Studio (M2)
+
+```bash
+./build_studio.sh   # import + Linux + Windows + zip in WEBhtml/downloads/
+```
+
+Equivale a:
 
 ```bash
 flatpak run org.godotengine.Godot --headless \
@@ -803,6 +872,9 @@ flatpak run org.godotengine.Godot --headless \
   --export-release "Windows Studio" \
   "$PWD/build/studio/windows/RobloxWebStudio.exe"
 ```
+
+Smoke test del binario Linux: `./build/studio/linux/RobloxWebStudio.x86_64 --headless --quit-after 5`
+(attesi `ROBLOXWEBENGINE_READY` e `STUDIO_READY`).
 
 > Nota: dopo aver aggiunto/rimosso script con `class_name`, eseguire una volta
 > `flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine --import`

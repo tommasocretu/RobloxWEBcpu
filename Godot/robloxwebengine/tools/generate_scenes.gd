@@ -16,9 +16,11 @@ const MENU_SCRIPT := preload("res://scripts/ui/menu.gd")
 const HUD_SCRIPT := preload("res://scripts/ui/hud.gd")
 const MAIN_SCRIPT := preload("res://scripts/main.gd")
 const NET_CLIENT_SCRIPT := preload("res://scripts/net/net_client.gd")
+const PLACE_CLIENT_SCRIPT := preload("res://scripts/net/place_client.gd")
 const LEVEL_SELECT_SCRIPT := preload("res://scripts/ui/level_select.gd")
 const EDITOR_SCRIPT := preload("res://scripts/editor/editor.gd")
 const EDITOR_CAMERA_SCRIPT := preload("res://scripts/editor/editor_camera.gd")
+const STUDIO_START_SCRIPT := preload("res://scripts/studio/studio_start.gd")
 
 # Colori in stile Roblox (RGB 0-1)
 const YELLOW := Color(0.96, 0.80, 0.19)
@@ -41,6 +43,7 @@ func _init() -> void:
 	DirAccess.make_dir_recursive_absolute("res://scenes/player")
 	DirAccess.make_dir_recursive_absolute("res://scenes/ui")
 	DirAccess.make_dir_recursive_absolute("res://scenes/editor")
+	DirAccess.make_dir_recursive_absolute("res://scenes/studio")
 
 	_save_scene(_build_world(), "res://scenes/world/baseplate.tscn")
 	_save_scene(_build_character(), "res://scenes/player/character.tscn")
@@ -49,6 +52,7 @@ func _init() -> void:
 	_save_scene(_build_hud(), "res://scenes/ui/hud.tscn")
 	_save_scene(_build_level_select(), "res://scenes/ui/level_select.tscn")
 	_save_scene(_build_editor(), "res://scenes/editor/editor.tscn")
+	_save_scene(_build_studio_start(), "res://scenes/studio/studio_start.tscn")
 	_save_scene(_build_main(), "res://scenes/main.tscn")
 	quit()
 
@@ -499,7 +503,20 @@ func _build_main() -> Node:
 	net.set_script(NET_CLIENT_SCRIPT)
 	main.add_child(net)
 
+	var place_client := Node.new()
+	place_client.name = "PlaceClient"
+	place_client.set_script(PLACE_CLIENT_SCRIPT)
+	main.add_child(place_client)
+
 	return main
+
+
+func _build_studio_start() -> Control:
+	var start := Control.new()
+	start.name = "StudioStart"
+	start.set_script(STUDIO_START_SCRIPT)
+	start.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	return start
 
 
 func _build_level_select() -> CanvasLayer:

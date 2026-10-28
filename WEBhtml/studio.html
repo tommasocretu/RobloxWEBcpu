@@ -15,37 +15,44 @@
     <div>
       <h1>RobloxWeb Studio</h1>
       <p>
-        L'editor per costruire le tue esperienze: piazza parti, usa gli strumenti dell'editor
-        attuale e premi <strong>Pubblica</strong> per creare una nuova esperienza o una nuova
-        versione sul server.
-      </p>
-      <p class="muted" style="margin-top:18px">
-        Il binario desktop autonomo (Windows e Linux) arriva con la milestone M2. Fino ad allora
-        si usa l'editor incluso nel progetto Godot.
+        L'editor desktop per costruire le tue esperienze: piazza parti, usa gli strumenti
+        dell'editor, premi <strong>Testa</strong> per provare il livello e
+        <strong>Pubblica</strong> per creare una nuova esperienza o una nuova versione sul
+        server.
       </p>
       <div class="play-row">
-        <a class="btn btn-primary" href="/dev/index.html?editor=1">Apri l'editor nel browser</a>
-        <button class="btn" disabled>Download Windows (.exe) — in arrivo</button>
-        <button class="btn" disabled>Download Linux — in arrivo</button>
+        <a class="btn btn-primary" href="/downloads/RobloxWebStudio-windows.zip" download>
+          Download Windows (.zip)
+        </a>
+        <a class="btn btn-primary" href="/downloads/RobloxWebStudio-linux.zip" download>
+          Download Linux (.zip)
+        </a>
       </div>
       <p class="small muted" style="margin-top:14px">
-        L'editor nel browser è temporaneo (serve a provare il flusso di pubblicazione) e
-        richiede che l'export Web sia presente in <code>WEBhtml/dev/</code>.
+        Windows e Linux x86_64. Se il download restituisce 404, i binari non sono ancora
+        stati compilati: dalla root del repository esegui <code>./build_studio.sh</code>.
+      </p>
+      <p class="small muted">
+        Linux: <code>unzip RobloxWebStudio-linux.zip &amp;&amp; chmod +x RobloxWebStudio.x86_64</code>
+        poi avvia il file. Windows: estrai lo zip e apri <code>RobloxWebStudio.exe</code>.
+        Il server deve essere attivo su <code>http://127.0.0.1:9080</code> (o cambia l'URL
+        nella schermata iniziale).
       </p>
     </div>
     <aside class="studio-box">
       <h2>Come pubblicare</h2>
       <ul>
-        <li>Apri l'editor e costruisci il livello.</li>
-        <li>Premi <strong>Pubblica</strong> e accedi con il tuo account del sito.</li>
-        <li>Scegli titolo, descrizione e visibilità, poi conferma.</li>
+        <li>Avvia Studio e accedi con il tuo account (o continua offline).</li>
+        <li>Crea un nuovo livello, apri un file o scegli una delle tue place.</li>
+        <li>Premi <strong>Testa</strong> per giocare la versione corrente.</li>
+        <li>Premi <strong>Pubblica</strong>, scegli titolo, descrizione e visibilità.</li>
         <li>La thumbnail viene catturata dalla vista corrente dell'editor.</li>
         <li>La pagina esperienza mostra subito la nuova versione.</li>
       </ul>
-      <h2>Editor nativo</h2>
+      <h2>Server locale</h2>
       <p class="small muted" style="margin:0 0 14px">
-        <code>flatpak run org.godotengine.Godot --path Godot/robloxwebengine</code><br>
-        Livello predefinito → <strong>Editor</strong>.
+        <code>python3 server/run.py</code><br>
+        URL predefinito in Studio: <code>http://127.0.0.1:9080</code>.
       </p>
       <a class="btn btn-block" href="/">Torna al catalogo</a>
     </aside>

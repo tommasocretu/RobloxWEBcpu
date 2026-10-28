@@ -1,8 +1,9 @@
 class_name PublishClient
 extends Node
-## Pubblicazione delle esperienze (M1): login Bearer, creazione place, nuove
+## Pubblicazione delle esperienze (M1/M2): login Bearer, creazione place, nuove
 ## versioni, thumbnail e download dei propri livelli.
-## Usato dall'editor (nativo e web temporaneo); Studio userà lo stesso client.
+## Usato da Studio (start screen + editor) e dai test; la sessione desktop può essere
+## salvata in `user://studio_session.json` per non riaccedere a ogni avvio.
 ##
 ## Tutte le operazioni sono asincrone: ogni metodo avvia una richiesta e uno dei
 ## segnali qui sotto riporta l'esito. Una sola richiesta alla volta.
@@ -15,6 +16,10 @@ signal thumbnail_uploaded(ok: bool, message: String)
 
 const DEFAULT_BASE_URL := "http://127.0.0.1:9080"
 const REQUEST_TIMEOUT := 20.0
+## Impostazioni condivise da Studio e dall'editor (URL server e username).
+const PUBLISH_SETTINGS_PATH := "user://publish_settings.json"
+## Sessione salvata da Studio per non dover riaccedere a ogni avvio.
+const SESSION_PATH := "user://studio_session.json"
 
 var base_url := DEFAULT_BASE_URL
 var token := ""
@@ -45,6 +50,37 @@ func display_name() -> String:
 func clear_session() -> void:
 	token = ""
 	user = {}
+	if FileAccess.file_exists(SESSION_PATH):
+		DirAccess.remove_absolute(SESSION_PATH)
+
+
+## Salva token, utente e URL del server in `user://` (solo build desktop).
+func save_session() -> void:
+	if token == "":
+		return
+	LevelIO.save_to_path(
+		SESSION_PATH,
+		{"base_url": base_url, "token": token, "user": user}
+	)
+
+
+## Ripristina una sessione salvata. Ritorna false se non c'è o è incompleta.
+func restore_session() -> bool:
+	if token != "":
+		return true
+	var stored := LevelIO.load_from_path(SESSION_PATH)
+	if stored.is_empty():
+		return false
+	var saved_token := str(stored.get("token", "")).strip_edges()
+	var saved_user = stored.get("user", {})
+	if saved_token == "" or typeof(saved_user) != TYPE_DICTIONARY or saved_user.is_empty():
+		return false
+	token = saved_token
+	user = saved_user
+	var saved_url := str(stored.get("base_url", "")).strip_edges()
+	if saved_url != "":
+		base_url = normalize_base_url(saved_url)
+	return true
 
 
 ## URL di default: sul web lo stesso origin del sito, altrimenti localhost.
