@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Controlli di contenuto del sito RobloxWeb.
 
-Prima versione della PR 1: inventario pagine, token presenti, font self-hosted,
-nessuna risorsa esterna e regole di copy attivabili con ``--strict-copy``.
+Inventario pagine, token presenti, font self-hosted, nessuna risorsa esterna,
+vocabolario 2014, chrome senza ricerca globale e nessun ``confirm()`` residuo.
+La PR 2 attiva il controllo del copy; ``--strict-confirm`` trasformerà in errore
+le chiamate a ``confirm()`` quando le pagine account saranno migrate (PR 5).
 Nessuna dipendenza esterna.
 """
 
@@ -74,7 +76,12 @@ COPY_PATTERNS = [
     (re.compile(r"\besperienz", re.IGNORECASE), "“esperienza/esperienze”"),
     (re.compile(r"\blike\b", re.IGNORECASE), "“like”"),
     (re.compile(r"\bonline\b", re.IGNORECASE), "“online”"),
+    (re.compile(r"\bcatalog", re.IGNORECASE), "“catalogo”"),
 ]
+
+CONFIRM_RE = re.compile(r"\bconfirm\s*\(")
+SCRIPT_RE = re.compile(r"<script\b[^>]*>(.*?)</script>", re.IGNORECASE | re.DOTALL)
+CHROME_PAGES_SKIP_FOOTER = {"play.html"}
 
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 RESOURCE_TAG_RE = re.compile(
@@ -129,6 +136,11 @@ def check_pages(errors: list[str]) -> None:
         for font in PRELOAD_FONTS:
             if f'href="{font}"' not in markup:
                 errors.append(f"{name}: manca il preload di {font}")
+        body_tag = re.search(r"<body\b[^>]*>", markup, re.IGNORECASE)
+        if not body_tag or not re.search(r'\bdata-page="[a-z]+"', body_tag.group(0)):
+            errors.append(f'{name}: manca data-page="…" sul body')
+        if name not in CHROME_PAGES_SKIP_FOOTER and 'id="site-footer"' not in markup:
+            errors.append(f"{name}: manca il footer generato (#site-footer)")
         print(f"  - {name}: ok")
 
     existing = {path.name for path in WEB.glob("*.html")}
@@ -191,9 +203,48 @@ def check_external_resources(errors: list[str]) -> None:
     print("  - controllati script/link/img/iframe/source/video/audio e site.js")
 
 
-def check_copy(strict: bool, errors: list[str]) -> None:
+def check_chrome(errors: list[str]) -> None:
+    print("\nChrome:")
+    for name in PAGES:
+        path = WEB / name
+        if not path.exists():
+            continue
+        if "header-search" in path.read_text(encoding="utf-8"):
+            errors.append(f"{name}: la ricerca globale deve stare solo in games.html")
+    if JS_PATH.exists() and "header-search" in JS_PATH.read_text(encoding="utf-8"):
+        errors.append("site.js: la ricerca globale non deve essere generata nell'header")
+    print("  - header senza ricerca globale")
+
+
+def check_confirm(strict: bool, errors: list[str]) -> None:
+    print("\nconfirm():")
+    findings: list[str] = []
+    chunks: list[tuple[str, str]] = []
+    for name in PAGES:
+        path = WEB / name
+        if not path.exists():
+            continue
+        markup = path.read_text(encoding="utf-8")
+        chunks.append((name, "\n".join(SCRIPT_RE.findall(markup))))
+    if JS_PATH.exists():
+        chunks.append(("site.js", JS_PATH.read_text(encoding="utf-8")))
+    for name, text in chunks:
+        if CONFIRM_RE.search(text):
+            findings.append(name)
+    if not findings:
+        print("  - nessuna chiamata a confirm()")
+        return
+    message = "chiamate a confirm() da migrare a RW.confirmDialog: " + ", ".join(findings)
+    if strict:
+        errors.append(message)
+        print(f"  - {message}")
+    else:
+        print(f"  - warning: {message} (errori con --strict-confirm, PR 5)")
+
+
+def check_copy(errors: list[str]) -> None:
     print("\nCopy:")
-    findings: list[tuple[str, str, str]] = []
+    findings: list[tuple[str, str]] = []
     for name in PAGES:
         path = WEB / name
         if not path.exists():
@@ -201,17 +252,12 @@ def check_copy(strict: bool, errors: list[str]) -> None:
         text = visible_text(path.read_text(encoding="utf-8"))
         for pattern, label in COPY_PATTERNS:
             if pattern.search(text):
-                findings.append((name, label, text))
+                findings.append((name, label))
     if not findings:
         print("  - nessuna occorrenza dei termini da sostituire")
         return
-    pages_with_findings = len({name for name, _label, _text in findings})
-    print(f"  - {pages_with_findings} pagine con termini da sostituire (sweep PR 2)")
-    if strict:
-        for name, label, _text in findings:
-            errors.append(f"{name}: termine da sostituire: {label}")
-    else:
-        print("  - regole attivabili con --strict-copy")
+    for name, label in findings:
+        errors.append(f"{name}: termine da sostituire: {label}")
 
 
 def print_sizes() -> None:
@@ -224,9 +270,9 @@ def print_sizes() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--strict-copy",
+        "--strict-confirm",
         action="store_true",
-        help="tratta i termini di copy da sostituire come errori (PR 2)",
+        help="tratta le chiamate a confirm() come errori (PR 5)",
     )
     args = parser.parse_args()
 
@@ -239,7 +285,9 @@ def main() -> int:
         check_fonts(css_text, errors)
     check_pages(errors)
     check_external_resources(errors)
-    check_copy(args.strict_copy, errors)
+    check_chrome(errors)
+    check_confirm(args.strict_confirm, errors)
+    check_copy(errors)
     print_sizes()
 
     if errors:
@@ -248,7 +296,7 @@ def main() -> int:
             print(f"  - {error}")
         print(f"\n{len(errors)} errori di contenuto.")
         return 1
-    print("\nOK: pagine, token, font e risorse esterne coerenti.")
+    print("\nOK: pagine, token, font, risorse esterne, chrome e copy coerenti.")
     return 0
 
 
