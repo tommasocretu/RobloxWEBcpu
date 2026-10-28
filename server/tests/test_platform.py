@@ -1,4 +1,4 @@
-"""Test M0: HTTP API, sessioni, place, ticket e relay per stanze."""
+"""Test M0–M4: HTTP API, sessioni, place, like, versioni, ticket e relay per stanze."""
 from __future__ import annotations
 
 import base64
@@ -369,10 +369,13 @@ class PlatformTest(unittest.TestCase):
         place = next(item for item in payload["places"] if item["title"] == "Welcome Obby")
         self.assertEqual(place["author"], "RobloxWeb")
         self.assertEqual(place["live_players"], 0)
+        self.assertEqual(place["likes"], 0)
+        self.assertFalse(place["liked"])
 
         status, _, payload = self.client().get(f"/api/places/{self.seed_place_id}")
         self.assertEqual(status, 200)
         self.assertEqual(payload["place"]["id"], self.seed_place_id)
+        self.assertFalse(payload["place"]["liked"])
 
         status, _, _ = self.client().get("/api/places/999999")
         self.assertEqual(status, 404)
@@ -712,10 +715,207 @@ class PlatformTest(unittest.TestCase):
         status, _, payload = self.client().get(f"/api/users/{int(author['id'])}")
         self.assertEqual(status, 200)
         self.assertEqual(payload["user"]["name"], "RobloxWeb")
+        self.assertTrue(str(payload["user"]["avatar_color"]).startswith("#"))
+        self.assertGreaterEqual(payload["stats"]["places"], 2)
         self.assertIn(
             "Welcome Obby", [item["title"] for item in payload["places"]]
         )
         status, _, _ = self.client().get("/api/users/999999")
+        self.assertEqual(status, 404)
+
+    # --- scoperta (M4) -----------------------------------------------------
+
+    def test_schema_v2_likes_and_reports(self):
+        version = db.connection().execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(int(version), 2)
+        columns = {
+            row["name"]
+            for row in db.connection().execute("PRAGMA table_info(places)").fetchall()
+        }
+        self.assertIn("likes", columns)
+        tables = {
+            row["name"]
+            for row in db.connection()
+            .execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            .fetchall()
+        }
+        self.assertIn("place_likes", tables)
+        self.assertIn("reports", tables)
+
+    def test_search_by_title_and_author(self):
+        status, _, payload = self.client().get("/api/places?q=welcome")
+        self.assertEqual(status, 200)
+        self.assertIn("Welcome Obby", [item["title"] for item in payload["places"]])
+
+        status, _, payload = self.client().get("/api/places?q=robloxweb")
+        self.assertEqual(status, 200)
+        self.assertIn("Welcome Obby", [item["title"] for item in payload["places"]])
+
+        status, _, payload = self.client().get("/api/places?q=nessun-risultato-xyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["places"], [])
+
+    def _public_place(self, owner_id: int, title: str) -> int:
+        text = Path(config.DEFAULT_LEVEL_PATH).read_text(encoding="utf-8")
+        return places.create_place(
+            int(owner_id), title, "", text, visibility="public"
+        )
+
+    def test_like_toggle_guest_and_liked_list(self):
+        author = auth.get_user_by_username("RobloxWeb")
+        place_id = self._public_place(int(author["id"]), "Like test")
+
+        anon = self.client()
+        status, _, _ = anon.post(f"/api/places/{place_id}/like")
+        self.assertEqual(status, 401)
+        status, _, _ = anon.get("/api/me/likes")
+        self.assertEqual(status, 401)
+
+        guest = self.client()
+        self.assertEqual(guest.post("/api/guest")[0], 200)
+        status, _, payload = guest.post(f"/api/places/{place_id}/like")
+        self.assertEqual(status, 403)
+        self.assertIn("ospiti", payload["error"])
+
+        reader, reader_user = self._register_user("liker")
+        status, _, payload = reader.post(f"/api/places/{place_id}/like")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"liked": True, "likes": 1})
+
+        status, _, detail = reader.get(f"/api/places/{place_id}")
+        self.assertEqual(status, 200)
+        self.assertTrue(detail["place"]["liked"])
+        self.assertEqual(detail["place"]["likes"], 1)
+
+        status, _, detail = self.client().get(f"/api/places/{place_id}")
+        self.assertFalse(detail["place"]["liked"])
+        self.assertEqual(detail["place"]["likes"], 1)
+
+        status, _, liked = reader.get("/api/me/likes")
+        self.assertEqual(status, 200)
+        self.assertIn(place_id, [item["id"] for item in liked["places"]])
+
+        # Un secondo click toglie il like e il conteggio torna a zero.
+        status, _, payload = reader.post(f"/api/places/{place_id}/like")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"liked": False, "likes": 0})
+        status, _, liked = reader.get("/api/me/likes")
+        self.assertNotIn(place_id, [item["id"] for item in liked["places"]])
+
+        status, _, _ = reader.post("/api/places/999999/like")
+        self.assertEqual(status, 404)
+
+    def test_popular_sort_uses_likes(self):
+        author = auth.get_user_by_username("RobloxWeb")
+        low = self._public_place(int(author["id"]), "Meno like")
+        high = self._public_place(int(author["id"]), "Piu like")
+        reader, _ = self._register_user("sorter")
+        self.assertEqual(reader.post(f"/api/places/{high}/like")[0], 200)
+
+        _, _, payload = reader.get("/api/places?sort=likes")
+        ids = [item["id"] for item in payload["places"]]
+        self.assertIn(low, ids)
+        self.assertIn(high, ids)
+        self.assertLess(ids.index(high), ids.index(low))
+
+    def test_version_rollback(self):
+        author, author_user = self._register_user("autore_rollback")
+        level_one = self._level("Rollback v1")
+        status, _, payload = author.post(
+            "/api/places", {"title": "Rollback", "level": level_one}
+        )
+        self.assertEqual(status, 201)
+        place_id = payload["place"]["id"]
+
+        level_two = self._level("Rollback v2")
+        status, _, published = author.post(
+            f"/api/places/{place_id}/versions",
+            {"level": level_two, "title": "Rollback v2"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(published["version"], 2)
+
+        guest = self.client()
+        self.assertEqual(guest.post("/api/guest")[0], 200)
+        status, _, _ = guest.post(f"/api/places/{place_id}/versions/1/rollback")
+        self.assertEqual(status, 403)
+
+        reader, _ = self._register_user("lettore_rollback")
+        status, _, _ = reader.post(f"/api/places/{place_id}/versions/1/rollback")
+        self.assertEqual(status, 403)
+
+        status, _, restored = author.post(
+            f"/api/places/{place_id}/versions/1/rollback"
+        )
+        self.assertEqual(status, 200, restored)
+        self.assertEqual(restored["version"], 3)
+        self.assertEqual(restored["restored_from"], 1)
+        self.assertEqual(restored["place"]["current_version"], 3)
+        # I metadati correnti restano quelli dell'ultima pubblicazione.
+        self.assertEqual(restored["place"]["title"], "Rollback v2")
+
+        status, _, data = author.get(f"/api/places/{place_id}/data")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["level"]["meta"]["title"], "Rollback v1")
+
+        status, _, versions = author.get(f"/api/places/{place_id}/versions")
+        self.assertEqual(
+            [item["version"] for item in versions["versions"]], [3, 2, 1]
+        )
+
+        status, _, _ = author.post(f"/api/places/{place_id}/versions/99/rollback")
+        self.assertEqual(status, 404)
+
+    def test_report_place(self):
+        author = auth.get_user_by_username("RobloxWeb")
+        place_id = self._public_place(int(author["id"]), "Da segnalare")
+
+        anon = self.client()
+        status, _, _ = anon.post(
+            f"/api/places/{place_id}/report", {"reason": "spam"}
+        )
+        self.assertEqual(status, 401)
+
+        guest = self.client()
+        self.assertEqual(guest.post("/api/guest")[0], 200)
+        status, _, _ = guest.post(
+            f"/api/places/{place_id}/report", {"reason": "spam"}
+        )
+        self.assertEqual(status, 403)
+
+        reporter, reporter_user = self._register_user("reporter")
+        status, _, _ = reporter.post(
+            f"/api/places/{place_id}/report",
+            {"reason": "spam", "details": "Link sospetti"},
+        )
+        self.assertEqual(status, 201)
+        # Una seconda segnalazione dello stesso utente aggiorna quella esistente.
+        status, _, _ = reporter.post(
+            f"/api/places/{place_id}/report",
+            {"reason": "copyright", "details": "Aggiornata"},
+        )
+        self.assertEqual(status, 201)
+        rows = db.connection().execute(
+            "SELECT * FROM reports WHERE place_id = ? AND reporter_id = ?",
+            (place_id, int(reporter_user["id"])),
+        ).fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["reason"], "copyright")
+
+        status, _, _ = reporter.post(
+            f"/api/places/{place_id}/report", {"reason": "sconosciuto"}
+        )
+        self.assertEqual(status, 400)
+
+        own_id = self._public_place(int(reporter_user["id"]), "La mia")
+        status, _, _ = reporter.post(
+            f"/api/places/{own_id}/report", {"reason": "spam"}
+        )
+        self.assertEqual(status, 400)
+
+        status, _, _ = reporter.post(
+            "/api/places/999999/report", {"reason": "spam"}
+        )
         self.assertEqual(status, 404)
 
     # --- ticket ------------------------------------------------------------

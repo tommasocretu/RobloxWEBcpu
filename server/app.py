@@ -295,7 +295,22 @@ class PlatformHandler(BaseHTTPRequestHandler):
             if user is None:
                 raise ApiError(401, "Sessione mancante o scaduta.")
             self._send_json(
-                200, {"places": places.list_owned(int(user["id"]), self.platform.live)}
+                200,
+                {
+                    "places": places.list_owned(
+                        int(user["id"]),
+                        self.platform.live,
+                        places.liked_ids(int(user["id"])),
+                    )
+                },
+            )
+            return
+
+        if route == ["me", "likes"] and method == "GET":
+            if user is None:
+                raise ApiError(401, "Sessione mancante o scaduta.")
+            self._send_json(
+                200, {"places": places.list_liked(int(user["id"]), self.platform.live)}
             )
             return
 
@@ -303,16 +318,16 @@ class PlatformHandler(BaseHTTPRequestHandler):
             author = auth.get_user_by_id(self._place_id(route[1]))
             if author is None or bool(author["is_guest"]):
                 raise ApiError(404, "Utente non trovato.")
+            liked = places.liked_ids(int(user["id"])) if user else set()
+            public = auth.public_user(author)
+            public.pop("is_guest", None)
             self._send_json(
                 200,
                 {
-                    "user": {
-                        "id": int(author["id"]),
-                        "name": str(author["display_name"]),
-                        "created_at": str(author["created_at"]),
-                    },
+                    "user": public,
+                    "stats": places.author_stats(int(author["id"])),
                     "places": places.list_by_author(
-                        int(author["id"]), self.platform.live
+                        int(author["id"]), self.platform.live, liked
                     ),
                 },
             )
@@ -321,7 +336,10 @@ class PlatformHandler(BaseHTTPRequestHandler):
         if route == ["places"] and method == "GET":
             sort = str(query.get("sort", ["popular"])[0])
             q = str(query.get("q", [""])[0])[:80]
-            items = places.list_places(sort, q, live_lookup=self.platform.live)
+            liked = places.liked_ids(int(user["id"])) if user else set()
+            items = places.list_places(
+                sort, q, live_lookup=self.platform.live, liked_ids=liked
+            )
             self._send_json(200, {"places": items, "total": len(items)})
             return
 
@@ -364,8 +382,51 @@ class PlatformHandler(BaseHTTPRequestHandler):
                 raise ApiError(404, "Esperienza non trovata.")
             if not places.can_view(row, int(user["id"]) if user else None):
                 raise ApiError(403, "Esperienza privata.")
-            detail = places.public_place(row, self.platform.live(place_id))
+            liked = places.is_liked(place_id, int(user["id"])) if user else False
+            detail = places.public_place(row, self.platform.live(place_id), liked)
             self._send_json(200, {"place": detail})
+            return
+
+        if len(route) == 3 and route[0] == "places" and route[2] == "like" and method == "POST":
+            self._limit("like")
+            account = self._require_account(
+                user, "Gli ospiti non possono mettere like. Registrati per continuare."
+            )
+            self._discard_body()
+            place_id = self._place_id(route[1])
+            row = places.get_place(place_id)
+            if row is None:
+                raise ApiError(404, "Esperienza non trovata.")
+            if not places.can_view(row, int(account["id"])):
+                raise ApiError(403, "Esperienza privata.")
+            liked, likes = places.toggle_like(place_id, int(account["id"]))
+            self._send_json(200, {"liked": liked, "likes": likes})
+            return
+
+        if len(route) == 3 and route[0] == "places" and route[2] == "report" and method == "POST":
+            self._limit("report")
+            account = self._require_account(
+                user, "Gli ospiti non possono segnalare contenuti. Registrati per continuare."
+            )
+            body = self._read_json()
+            place_id = self._place_id(route[1])
+            row = places.get_place(place_id)
+            if row is None:
+                raise ApiError(404, "Esperienza non trovata.")
+            if not places.can_view(row, int(account["id"])):
+                raise ApiError(403, "Esperienza privata.")
+            if places.is_owner(row, int(account["id"])):
+                raise ApiError(400, "Non puoi segnalare la tua esperienza.")
+            try:
+                places.add_report(
+                    place_id,
+                    int(account["id"]),
+                    body.get("reason", ""),
+                    body.get("details", ""),
+                )
+            except places.PlaceError as exc:
+                raise ApiError(400, str(exc))
+            self._send_json(201, {"ok": True})
             return
 
         if len(route) == 2 and route[0] == "places" and method == "PUT":
@@ -483,6 +544,39 @@ class PlatformHandler(BaseHTTPRequestHandler):
             return
 
         if (
+            len(route) == 5
+            and route[0] == "places"
+            and route[2] == "versions"
+            and route[4] == "rollback"
+            and method == "POST"
+        ):
+            self._limit("rollback")
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            self._discard_body()
+            source_version = self._place_id(route[3])
+            if places.get_version(place_id, source_version) is None:
+                raise ApiError(404, "Versione non trovata.")
+            try:
+                version = places.rollback_version(place_id, source_version)
+            except places.PlaceError as exc:
+                raise ApiError(400, str(exc))
+            row = places.get_place(place_id)
+            self._send_json(
+                200,
+                {
+                    "place": places.public_place(
+                        row, self.platform.live(place_id),
+                        places.is_liked(place_id, int(owner["id"])),
+                    ),
+                    "version": version,
+                    "restored_from": source_version,
+                },
+            )
+            return
+
+        if (
             len(route) == 4
             and route[0] == "places"
             and route[2] == "versions"
@@ -562,6 +656,13 @@ class PlatformHandler(BaseHTTPRequestHandler):
             raise ApiError(401, "Sessione mancante o scaduta.")
         if not allow_guest and bool(user["is_guest"]):
             raise ApiError(403, "Gli ospiti non possono modificare esperienze.")
+        return user
+
+    def _require_account(self, user, message: str):
+        if user is None:
+            raise ApiError(401, "Accedi o registrati per continuare.")
+        if bool(user["is_guest"]):
+            raise ApiError(403, message)
         return user
 
     def _owned_place(self, place_id: int, user):

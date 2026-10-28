@@ -16,6 +16,7 @@
     <div>
       <h1 id="profile-name"></h1>
       <div class="muted" id="profile-username"></div>
+      <div class="profile-stats" id="profile-stats"></div>
     </div>
     <div class="profile-actions" id="profile-actions"></div>
   </section>
@@ -29,6 +30,13 @@
     </div>
     <div class="card-grid" id="my-places"></div>
     <div class="empty" id="my-places-empty" hidden></div>
+  </section>
+
+  <section id="liked-section" hidden>
+    <div class="section-head">
+      <h2>Esperienze che ti piacciono</h2>
+    </div>
+    <div class="card-grid" id="liked-places"></div>
   </section>
 </main>
 <footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
@@ -61,6 +69,16 @@
   </form>
 </dialog>
 
+<dialog class="edit-dialog" id="versions-dialog">
+  <h2>Storico versioni</h2>
+  <p class="small muted" id="versions-subtitle"></p>
+  <div class="alert" id="versions-alert" hidden></div>
+  <ul class="version-list" id="versions-list"></ul>
+  <div class="dialog-actions">
+    <button class="btn btn-ghost" type="button" id="versions-close">Chiudi</button>
+  </div>
+</dialog>
+
 <script>
 (async function () {
   const alertBox = document.getElementById("profile-alert");
@@ -70,9 +88,15 @@
   const actions = document.getElementById("profile-actions");
   const placesTitle = document.getElementById("places-title");
   const placesHint = document.getElementById("places-hint");
+  const statsBox = document.getElementById("profile-stats");
+  const likedSection = document.getElementById("liked-section");
   const dialog = document.getElementById("edit-dialog");
   const editAlert = document.getElementById("edit-alert");
   const editForm = document.getElementById("edit-form");
+  const versionsDialog = document.getElementById("versions-dialog");
+  const versionsAlert = document.getElementById("versions-alert");
+  const versionsList = document.getElementById("versions-list");
+  let versionsPlaceId = 0;
 
   const me = await RW.me();
   const requested = RW.qs("user");
@@ -85,6 +109,7 @@
 
   let profile;
   let places = [];
+  let stats = { places: 0, visits: 0, likes: 0 };
   let canEdit = false;
 
   if (ownProfile) {
@@ -92,7 +117,7 @@
       await RW.requireUser();
       return;
     }
-    profile = { name: me.name, username: me.username, is_guest: me.is_guest, created_at: me.created_at };
+    profile = Object.assign({}, me);
     canEdit = !me.is_guest;
     const result = await RW.api("/api/me/places");
     if (!result.ok) {
@@ -100,6 +125,11 @@
       return;
     }
     places = result.data.places || [];
+    stats = {
+      places: places.length,
+      visits: places.reduce((sum, place) => sum + Number(place.visits || 0), 0),
+      likes: places.reduce((sum, place) => sum + Number(place.likes || 0), 0),
+    };
   } else {
     const result = await RW.api("/api/users/" + encodeURIComponent(requested));
     if (!result.ok) {
@@ -112,13 +142,20 @@
     }
     profile = result.data.user;
     places = result.data.places || [];
+    stats = result.data.stats || {
+      places: places.length,
+      visits: places.reduce((sum, place) => sum + Number(place.visits || 0), 0),
+      likes: places.reduce((sum, place) => sum + Number(place.likes || 0), 0),
+    };
     placesTitle.textContent = "Esperienze di " + profile.name;
   }
 
   document.title = profile.name + " — RobloxWeb";
   head.hidden = false;
-  document.getElementById("profile-avatar").textContent =
-    String(profile.name || "?").slice(0, 1).toUpperCase();
+  const avatar = document.getElementById("profile-avatar");
+  avatar.textContent = String(profile.name || "?").slice(0, 1).toUpperCase();
+  const color = RW.userColor(profile);
+  avatar.style.background = "linear-gradient(135deg, " + color + ", " + color + "cc)";
   document.getElementById("profile-name").textContent = profile.name;
   const username = document.getElementById("profile-username");
   let sub = profile.username
@@ -129,6 +166,10 @@
     sub = sub ? sub + " · " + since : since;
   }
   username.textContent = sub;
+  statsBox.innerHTML =
+    "<span><strong>" + RW.formatNumber(stats.places || 0) + "</strong> esperienze</span>" +
+    "<span><strong>" + RW.formatNumber(stats.visits || 0) + "</strong> visite</span>" +
+    "<span><strong>" + RW.formatNumber(stats.likes || 0) + "</strong> like</span>";
 
   if (canEdit) {
     actions.innerHTML =
@@ -154,7 +195,7 @@
 
   function ownerCard(place) {
     return `
-      <article class="card owner-card">
+      <article class="card owner-card" data-place-card="${RW.escape(place.id)}">
         <a href="/place.html?id=${encodeURIComponent(place.id)}">
           ${RW.thumbHTML(place)}
           <div class="card-body">
@@ -163,11 +204,13 @@
               <span class="badge badge-${RW.escape(place.visibility)}">${RW.escape(RW.visibilityLabel(place.visibility))}</span>
               <span class="dot">·</span>v${RW.formatNumber(place.current_version)}
               <span class="dot">·</span>${RW.formatNumber(place.visits)} visite
+              <span class="dot">·</span>${RW.formatNumber(place.likes)} like
             </div>
           </div>
         </a>
         ${canEdit ? `<div class="owner-actions">
           <button class="btn btn-small" type="button" data-edit="${place.id}">Modifica</button>
+          <button class="btn btn-small" type="button" data-versions="${place.id}">Versioni</button>
           <a class="btn btn-small btn-primary" href="/play.html?id=${encodeURIComponent(place.id)}">Gioca</a>
         </div>` : ""}
       </article>`;
@@ -187,6 +230,9 @@
     grid.querySelectorAll("[data-edit]").forEach((button) => {
       button.addEventListener("click", () => openEdit(Number(button.dataset.edit)));
     });
+    grid.querySelectorAll("[data-versions]").forEach((button) => {
+      button.addEventListener("click", () => openVersions(Number(button.dataset.versions)));
+    });
   }
 
   function openEdit(placeId) {
@@ -202,8 +248,84 @@
     dialog.showModal();
   }
 
+  async function loadVersions() {
+    const placeId = versionsPlaceId;
+    const place = places.find((item) => item.id === placeId);
+    const current = place ? Number(place.current_version) : 0;
+    const result = await RW.api("/api/places/" + placeId + "/versions");
+    if (!result.ok) {
+      versionsList.innerHTML = "";
+      RW.setAlert(versionsAlert, result.error, "error");
+      return;
+    }
+    RW.setAlert(versionsAlert, "", "error");
+    const versions = result.data.versions || [];
+    versionsList.innerHTML = versions.map((version) => {
+      const when = version.created_at
+        ? new Date(version.created_at).toLocaleString("it-IT")
+        : "";
+      const size = version.bytes
+        ? Math.max(1, Math.round(Number(version.bytes) / 1024)) + " KB"
+        : "";
+      const isCurrent = Number(version.version) === current;
+      return `
+        <li class="version-row">
+          <div>
+            <strong>v${RW.formatNumber(version.version)}</strong>
+            ${isCurrent ? '<span class="badge badge-public">corrente</span>' : ""}
+            <div class="small muted">${RW.escape(when)}${size ? " · " + RW.escape(size) : ""}</div>
+          </div>
+          ${isCurrent ? "" : `<button class="btn btn-small" type="button" data-rollback="${version.version}">Ripristina</button>`}
+        </li>`;
+    }).join("");
+    versionsList.querySelectorAll("[data-rollback]").forEach((button) => {
+      button.addEventListener("click", () => rollbackVersion(Number(button.dataset.rollback), button));
+    });
+  }
+
+  function openVersions(placeId) {
+    const place = places.find((item) => item.id === placeId);
+    if (!place) return;
+    versionsPlaceId = placeId;
+    document.getElementById("versions-subtitle").textContent =
+      "Esperienza #" + place.id + " · " + place.title;
+    versionsList.innerHTML = '<li class="version-row muted">Caricamento…</li>';
+    RW.setAlert(versionsAlert, "", "error");
+    versionsDialog.showModal();
+    loadVersions();
+  }
+
+  async function rollbackVersion(version, button) {
+    if (!versionsPlaceId) return;
+    if (!confirm("Ripristinare la versione v" + version +
+      "? Verrà creata una nuova versione corrente; lo storico non viene cancellato.")) {
+      return;
+    }
+    button.disabled = true;
+    const result = await RW.api(
+      "/api/places/" + versionsPlaceId + "/versions/" + version + "/rollback",
+      { method: "POST" }
+    );
+    if (!result.ok) {
+      button.disabled = false;
+      RW.setAlert(versionsAlert, result.error, "error");
+      return;
+    }
+    const updated = result.data.place;
+    places = places.map((item) => (item.id === versionsPlaceId ? updated : item));
+    render();
+    await loadVersions();
+    RW.setAlert(
+      alertBox,
+      "Ripristinata la versione v" + version + " come nuova v" + result.data.version + ".",
+      "info"
+    );
+  }
+
   document.getElementById("edit-cancel").addEventListener("click", () => dialog.close());
   dialog.addEventListener("close", () => delete dialog.dataset.placeId);
+  document.getElementById("versions-close").addEventListener("click", () => versionsDialog.close());
+  versionsDialog.addEventListener("close", () => { versionsPlaceId = 0; });
 
   editForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -233,6 +355,18 @@
 
   render();
   await RW.initHeader();
+
+  if (ownProfile && me && !me.is_guest) {
+    const liked = await RW.api("/api/me/likes");
+    if (liked.ok) {
+      const items = liked.data.places || [];
+      if (items.length) {
+        document.getElementById("liked-places").innerHTML = items.map(RW.card).join("");
+        likedSection.hidden = false;
+      }
+    }
+  }
+
   if (places.length) {
     RW.pollLive(() => (ownProfile ? "/api/me/places" : "/api/users/" + encodeURIComponent(requested)), 12000);
   }

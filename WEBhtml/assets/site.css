@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -299,7 +300,14 @@ button, input, textarea, select { font: inherit; }
 .place-stats { display: flex; gap: 18px; flex-wrap: wrap; margin: 20px 0; color: var(--muted); font-size: 14px; }
 .place-stats strong { display: block; color: #fff; font-size: 20px; }
 .place-description { margin: 18px 0 0; color: #c6d1e4; line-height: 1.6; white-space: pre-wrap; }
-.play-row { display: flex; gap: 12px; margin-top: 24px; }
+.play-row { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+.like-button { min-width: 92px; }
+.like-button.liked {
+  color: #ffd7dc;
+  background: rgba(255, 92, 108, 0.18);
+  border-color: rgba(255, 92, 108, 0.5);
+}
+.like-button.liked:hover { background: rgba(255, 92, 108, 0.26); }
 
 /* --- login -------------------------------------------------------------- */
 
@@ -376,6 +384,9 @@ button, input, textarea, select { font: inherit; }
 }
 .profile-head h1 { margin: 0 0 4px; font-size: 30px; }
 .profile-actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.profile-stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 13px; }
+.profile-stats strong { margin-right: 3px; color: #fff; font-size: 16px; }
+#liked-section { margin-top: 36px; }
 
 .empty {
   padding: 40px 22px;
@@ -416,6 +427,25 @@ button, input, textarea, select { font: inherit; }
 .edit-dialog textarea:focus,
 .edit-dialog select:focus { border-color: var(--blue); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+.version-list {
+  max-height: 340px;
+  margin: 16px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 2px;
+  border-top: 1px solid var(--border);
+}
+.version-row:first-child { border-top: 0; }
+.version-row .badge { margin-left: 8px; }
+.version-row .btn { flex: 0 0 auto; }
 
 /* --- play --------------------------------------------------------------- */
 

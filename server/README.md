@@ -1,4 +1,4 @@
-# Server RobloxWeb (M0–M3)
+# Server RobloxWeb (M0–M4)
 
 Un solo processo Python (solo standard library) che serve:
 
@@ -6,9 +6,10 @@ Un solo processo Python (solo standard library) che serve:
 - il relay WebSocket multi-giocatore su `ws://127.0.0.1:9081`;
 - il database SQLite e i dati locali in `server/data/` (gitignored).
 
-Il server M3 non introduce nuove route: accetta e valida i livelli v2 con
-`scripts[]` (id/nome/parent/enabled/sorgente) e li salva come gli altri livelli;
-il client web e Studio eseguono gli script Lua sandboxati.
+M4 aggiunge ricerca/ordinamento, like, profili con statistiche, storico versioni con
+rollback, segnalazioni e le restrizioni ospite complete. Il server migra da solo il
+database esistente a `PRAGMA user_version = 2` (colonna `places.likes`, tabelle
+`place_likes` e `reports`).
 
 ## Avvio
 
@@ -40,15 +41,19 @@ Variabili d'ambiente: `ROBLOXWEB_HOST`, `ROBLOXWEB_HTTP_PORT`, `ROBLOXWEB_WS_POR
 | POST | `/api/token` | no | login per client nativi: token Bearer, nessun cookie |
 | POST | `/api/logout` | sì | cancella sessione (cookie o Bearer) |
 | GET | `/api/me` | sì | utente corrente (401 se anonimo) |
-| GET | `/api/places?sort=popular\|recent&q=` | no | catalogo pubblico |
+| GET | `/api/places?sort=popular\|likes\|recent\|visits&q=` | no | catalogo pubblico, ricerca titolo/autore; `liked` se autenticato |
 | GET | `/api/places/<id>` | no | dettaglio (private solo all'owner) |
-| GET | `/api/users/<id>` | no | profilo autore + esperienze pubbliche |
+| GET | `/api/users/<id>` | no | profilo autore + statistiche + esperienze pubbliche |
+| GET | `/api/me/likes` | sì | esperienze che piacciono all'utente |
+| POST | `/api/places/<id>/like` | account | toggle like; 403 agli ospiti (M4) |
+| POST | `/api/places/<id>/report` | account | segnalazione contenuti (M4) |
 | POST | `/api/places` | sì | crea place + versione 1 (M1) |
 | PUT | `/api/places/<id>` | owner | titolo/descrizione/visibilità (M1) |
 | DELETE | `/api/places/<id>` | owner | elimina place e thumbnail (M1) |
 | GET | `/api/places/<id>/data` | owner | livello della versione corrente (M1) |
 | POST | `/api/places/<id>/versions` | owner | pubblica una nuova versione (M1) |
-| GET | `/api/places/<id>/versions` | owner | storico versioni (M1) |
+| POST | `/api/places/<id>/versions/<v>/rollback` | owner | ripristina v come nuova versione (M4) |
+| GET | `/api/places/<id>/versions` | owner | storico versioni (M1/M4) |
 | GET | `/api/places/<id>/versions/<v>` | owner | livello di una versione (M1) |
 | POST | `/api/places/<id>/thumbnail` | owner | PNG raw, `Content-Type: image/png` (M1) |
 | GET | `/api/me/places` | sì | proprie place, incluse private |
@@ -116,6 +121,25 @@ curl -s -X POST http://127.0.0.1:9080/api/places/1/thumbnail \
   gradiente come fallback se la versione corrente non ha una thumbnail.
 - `thumbnail_path` è salvato su `place_versions`: lo storico sa quale versione aveva
   un'immagine.
+
+## Scoperta, like e segnalazioni (M4)
+
+- `GET /api/places?sort=popular|likes|recent|visits&q=testo`: ricerca case-insensitive
+  su titolo, `display_name` e `username`; `popular` ordina per like, poi visite e
+  aggiornamento. Se la richiesta è autenticata, ogni place include `liked`.
+- `POST /api/places/<id>/like` (account, non ospiti): toggle. Risposta
+  `{"liked": true, "likes": 3}`. `GET /api/me/likes` restituisce le esperienze
+  visibili piaciute all'utente.
+- `POST /api/places/<id>/report` `{"reason": "spam", "details": "..."}`: motivi
+  `inappropriate`, `spam`, `copyright`, `other`; dettagli max 500. Una segnalazione per
+  utente/place viene aggiornata se ripetuta. L'owner non può segnalare la propria place.
+- `POST /api/places/<id>/versions/<v>/rollback` (owner): crea la versione successiva
+  con il `data_json` della versione scelta. Lo storico è append-only e i metadati
+  correnti (titolo/descrizione/visibilità/thumbnail) restano invariati.
+- Gli ospiti ricevono 403 su like, segnalazioni e publish; il relay continua a
+  rifiutare la chat degli ospiti.
+- `GET /api/users/<id>` aggiunge `avatar_color` (colore stabile derivato dall'id) e
+  `stats` con `places`, `visits`, `likes` delle sole esperienze pubbliche.
 
 ## Relay
 

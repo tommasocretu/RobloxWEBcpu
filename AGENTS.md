@@ -14,7 +14,7 @@
   `build/studio/windows/`), generati da `build_studio.sh` e gitignored.
 - `PLAN.md` è il piano completo della piattaforma (M0–M5).
 
-## Stato attuale: M3 — Lua sandbox
+## Stato attuale: M4 — Scoperta
 
 Flusso funzionante in locale:
 
@@ -46,6 +46,14 @@ Flusso funzionante in locale:
     `scripts[]` con `id`, `name`, `parent_id`, `enabled`, `source`. Il seed crea anche
     la place **Demo script** (`levels/scripts_demo.rwl.json`) con porta, piattaforma
     rotante, lava e teletrasporto.
+13. **M4:** il catalogo ha ricerca per titolo/autore e ordinamento Popolari / Più
+    apprezzati / Recenti; card e pagina esperienza mostrano i like. Gli account possono
+    mettere/togliere like (`POST /api/places/<id>/like`) e segnalare un contenuto;
+    gli ospiti ricevono 403. Il profilo ha avatar colorato stabile, statistiche e
+    l'elenco "Esperienze che ti piacciono"; il proprietario vede lo storico versioni
+    con **Ripristina** (rollback append-only).
+14. Le place non elencate restano raggiungibili per link, le private solo dall'owner;
+    gli ospiti possono giocare, non like/segnalare/chat/pubblicare (blocco server-side).
 
 Seed idempotente al primo avvio: utente `demo` / `demo1234` (cambiare la password!),
 autore `RobloxWeb`, place **Welcome Obby** da `levels/default.rwl.json` e place
@@ -74,6 +82,11 @@ python3 -m unittest discover -s server/tests -v
   `GET /api/places/<id>/versions/<v>`, `POST /api/places/<id>/thumbnail`,
   `GET /api/users/<id>`, `POST /api/token`, `GET /thumbs/<id>.png?v=<versione>`.
   Ownership: 403 per i non-owner; ospiti rifiutati su pubblicazione/modifica.
+- API M4: `GET /api/places?sort=popular|likes|recent|visits&q=` (ricerca titolo/autore,
+  `liked` se autenticato), `POST /api/places/<id>/like` (toggle, solo account),
+  `GET /api/me/likes`, `POST /api/places/<id>/report`,
+  `POST /api/places/<id>/versions/<v>/rollback` (crea una nuova versione corrente).
+  `GET /api/users/<id>` restituisce `avatar_color` e `stats` (place/visite/like).
 - Visibilità: `public` nel catalogo, `unlisted` solo per link, `private` solo owner.
 - Thumbnail: PNG max 1 MB (1920×1080), salvata in `data/thumbs/<place_id>.png`,
   validata su firma+IHDR; una nuova versione eredita quella precedente.
@@ -94,11 +107,15 @@ python3 -m unittest discover -s server/tests -v
 - `play.html` verifica la sessione, mostra la top bar, carica l'iframe e ascolta
   `postMessage` dal client (`rw-leave` → torna alla pagina esperienza,
   `rw-error` → overlay di errore).
-- `profile.html`: proprie esperienze con badge di visibilità/versione e dialog
-  **Modifica** (`PUT /api/places/<id>`); `?user=<id>` mostra il profilo autore
-  pubblico con le sole esperienze pubbliche.
-- `place.html`: autore cliccabile, versione corrente, visite/live aggiornati ogni 10 s.
-- `index.html`: badge live aggiornati senza ridisegnare la griglia.
+- `profile.html`: proprie esperienze con badge di visibilità/versione, statistiche,
+  dialog **Modifica** (`PUT /api/places/<id>`) e **Versioni** con rollback;
+  `?user=<id>` mostra il profilo autore pubblico con avatar colorato e le sole
+  esperienze pubbliche. Gli account vedono anche "Esperienze che ti piacciono"
+  (`GET /api/me/likes`).
+- `place.html`: autore cliccabile, versione corrente, visite/like/live aggiornati ogni 10 s,
+  pulsante like (account) e dialog **Segnala** (`POST /api/places/<id>/report`).
+- `index.html`: ricerca per titolo/autore, ordinamento Popolari/Più apprezzati/Recenti,
+  badge live aggiornati senza ridisegnare la griglia.
 - `studio.html`: download Windows/Linux da `/downloads/` e istruzioni per pubblicare.
   I binari sono prodotti da `./build_studio.sh`; il vecchio editor web `?editor=1` è
   stato rimosso in M2.
@@ -320,7 +337,13 @@ Renderer GL Compatibility (Windows D3D12), fisica Jolt Physics.
 - Il livello non viene sincronizzato in rete: tutti i client caricano la stessa
   versione corrente dal server. La pubblicazione avviene dall'editor (M1), non dal
   client web di gioco.
-- Gli ospiti sono bloccati lato server su publish, like e chat.
+- Gli ospiti sono bloccati lato server su publish, like, segnalazioni e chat.
+- Il rollback versioni è append-only: crea una nuova versione con il contenuto scelto,
+  non modifica né cancella le versioni successive. Il titolo/descrizione/visibilità
+  correnti restano invariati.
+- `place_likes` ha una riga per utente/place e `places.likes` è il contatore
+  denormalizzato aggiornato nello stesso transaction; una segnalazione per utente/place
+  viene aggiornata, non duplicata.
 - `LevelIO.load_from_path` è riusato per `user://publish_settings.json` (URL server e
   username) e `user://studio_session.json` (token Bearer per non riaccedere a ogni
   avvio): non sono livelli, non validarli con `LevelData`. Il token è locale

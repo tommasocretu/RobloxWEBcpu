@@ -19,7 +19,7 @@
       </div>
 
       <h1 id="auth-title">Bentornato!</h1>
-      <p class="sub" id="auth-sub">Accedi per giocare, chattare e pubblicare le tue esperienze.</p>
+      <p class="sub" id="auth-sub">Accedi per giocare, mettere like e pubblicare le tue esperienze.</p>
       <div class="alert" id="auth-alert" hidden></div>
 
       <form id="login-form" autocomplete="on">
@@ -53,7 +53,7 @@
       <div class="divider">oppure</div>
       <button class="btn btn-block" type="button" id="guest-button">Continua come ospite</button>
       <p class="small muted" style="margin:14px 0 0">
-        Gli ospiti possono giocare ma non chattare né pubblicare. Accesso demo: <code>demo</code> / <code>demo1234</code>.
+        Gli ospiti possono giocare ma non mettere like, segnalare, chattare o pubblicare. Accesso demo: <code>demo</code> / <code>demo1234</code>.
       </p>
     </div>
   </div>
@@ -77,7 +77,7 @@
     tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
     title.textContent = isLogin ? "Bentornato!" : "Crea il tuo account";
     sub.textContent = isLogin
-      ? "Accedi per giocare, chattare e pubblicare le tue esperienze."
+      ? "Accedi per giocare, mettere like e pubblicare le tue esperienze."
       : "Registrati per pubblicare esperienze con RobloxWeb Studio.";
     RW.setAlert(alertBox, "", "error");
     (isLogin ? document.getElementById("login-username") : document.getElementById("register-username")).focus();

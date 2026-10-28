@@ -59,7 +59,32 @@ CREATE INDEX IF NOT EXISTS idx_places_visibility ON places(visibility);
 CREATE INDEX IF NOT EXISTS idx_versions_place ON place_versions(place_id);
 """
 
-MIGRATIONS = [(1, SCHEMA_V1)]
+SCHEMA_V2 = """
+ALTER TABLE places ADD COLUMN likes INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS place_likes (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  place_id INTEGER NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, place_id)
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  place_id INTEGER NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+  reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  details TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  UNIQUE (place_id, reporter_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_place_likes_place ON place_likes(place_id);
+CREATE INDEX IF NOT EXISTS idx_reports_place ON reports(place_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);
+"""
+
+MIGRATIONS = [(1, SCHEMA_V1), (2, SCHEMA_V2)]
 
 
 def utc_now() -> str:

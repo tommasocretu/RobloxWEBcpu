@@ -119,6 +119,13 @@
     return PALETTES[hash % PALETTES.length];
   };
 
+  RW.userColor = function (user) {
+    if (user && /^#[0-9a-f]{6}$/i.test(String(user.avatar_color || ""))) {
+      return user.avatar_color;
+    }
+    return RW.palette({ id: user && user.id, title: user && user.name })[1];
+  };
+
   RW.thumbStyle = function (place) {
     const colors = RW.palette(place);
     return `background: linear-gradient(135deg, ${colors[0]}, ${colors[1]});`;
@@ -153,6 +160,7 @@
             <div class="card-meta">
               di ${RW.escape(place.author)}
               <span class="dot">·</span>${RW.formatNumber(place.visits)} visite
+              <span class="dot">·</span><span class="likes-count">${RW.formatNumber(place.likes)}</span> like
               ${live > 0 ? `<span data-live-text="1"><span class="dot">·</span>${live} online</span>` : ""}
             </div>
           </div>
@@ -236,7 +244,8 @@
       header.innerHTML = RW.headerHTML();
       const nav = document.getElementById("account-nav");
       const user = await RW.me();
-      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      const currentPath = window.location.pathname + window.location.search;
+      const next = encodeURIComponent(currentPath);
       if (!user) {
         nav.innerHTML =
           `<a class="btn btn-ghost" href="/login.html?next=${next}">Accedi</a>` +
@@ -251,7 +260,7 @@
       if (guestButton) {
         guestButton.addEventListener("click", async () => {
           guestButton.disabled = true;
-          const result = await RW.startGuest(next);
+          const result = await RW.startGuest(currentPath);
           if (!result.ok) {
             guestButton.disabled = false;
             alert(result.error);

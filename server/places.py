@@ -9,10 +9,12 @@ import auth
 import config
 import db
 
-SORTS = {"popular", "recent", "visits"}
+SORTS = {"popular", "recent", "visits", "likes"}
 VISIBILITIES = ("public", "unlisted", "private")
+REPORT_REASONS = ("inappropriate", "spam", "copyright", "other")
 MAX_TITLE = 60
 MAX_DESCRIPTION = 500
+MAX_REPORT_DETAILS = 500
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -121,7 +123,7 @@ def _row_dict(row) -> dict:
     return {key: row[key] for key in row.keys()}
 
 
-def public_place(row, live: int = 0) -> dict:
+def public_place(row, live: int = 0, liked: bool = False) -> dict:
     keys = row.keys()
     thumbnail_path = row["thumbnail_path"] if "thumbnail_path" in keys else None
     place_id = int(row["id"])
@@ -137,6 +139,8 @@ def public_place(row, live: int = 0) -> dict:
         "owner_id": int(row["owner_id"]),
         "visibility": str(row["visibility"]),
         "visits": int(row["visits"]),
+        "likes": int(row["likes"]) if "likes" in keys else 0,
+        "liked": bool(liked),
         "live_players": int(live),
         "current_version": version,
         "created_at": str(row["created_at"]),
@@ -156,11 +160,18 @@ def _select_places(where: str, params: list, order: str, limit: int) -> list:
     return db.connection().execute(sql, [*params, max(1, min(int(limit), 100))]).fetchall()
 
 
-def list_places(sort: str = "popular", q: str = "", live_lookup=None, limit: int = 50) -> list[dict]:
+def list_places(
+    sort: str = "popular",
+    q: str = "",
+    live_lookup=None,
+    limit: int = 50,
+    liked_ids: set[int] | None = None,
+) -> list[dict]:
     if sort not in SORTS:
         sort = "popular"
     order = {
-        "popular": "p.visits DESC, p.updated_at DESC",
+        "popular": "p.likes DESC, p.visits DESC, p.updated_at DESC",
+        "likes": "p.likes DESC, p.visits DESC, p.updated_at DESC",
         "visits": "p.visits DESC, p.updated_at DESC",
         "recent": "p.updated_at DESC, p.id DESC",
     }[sort]
@@ -168,17 +179,18 @@ def list_places(sort: str = "popular", q: str = "", live_lookup=None, limit: int
     params: list = []
     query = q.strip()
     if query:
-        where += " AND (p.title LIKE ? OR u.display_name LIKE ?)"
+        where += " AND (p.title LIKE ? OR u.display_name LIKE ? OR u.username LIKE ?)"
         like = f"%{query}%"
-        params.extend([like, like])
+        params.extend([like, like, like])
     out = []
     for row in _select_places(where, params, order, limit):
         live = int(live_lookup(int(row["id"]))) if live_lookup else 0
-        out.append(public_place(row, live))
+        liked = bool(liked_ids and int(row["id"]) in liked_ids)
+        out.append(public_place(row, live, liked))
     return out
 
 
-def list_owned(owner_id: int, live_lookup=None) -> list[dict]:
+def list_owned(owner_id: int, live_lookup=None, liked_ids: set[int] | None = None) -> list[dict]:
     """Tutte le place dell'utente, incluse private e senza versione pubblicata."""
     rows = _select_places(
         "p.owner_id = ?", [int(owner_id)], "p.updated_at DESC, p.id DESC", 200
@@ -186,22 +198,56 @@ def list_owned(owner_id: int, live_lookup=None) -> list[dict]:
     out = []
     for row in rows:
         live = int(live_lookup(int(row["id"]))) if live_lookup else 0
-        out.append(public_place(row, live))
+        liked = bool(liked_ids and int(row["id"]) in liked_ids)
+        out.append(public_place(row, live, liked))
     return out
 
 
-def list_by_author(owner_id: int, live_lookup=None) -> list[dict]:
+def list_by_author(
+    owner_id: int, live_lookup=None, liked_ids: set[int] | None = None
+) -> list[dict]:
     rows = _select_places(
         "p.owner_id = ? AND p.visibility = 'public' AND p.current_version > 0",
         [int(owner_id)],
-        "p.visits DESC, p.updated_at DESC",
+        "p.likes DESC, p.visits DESC, p.updated_at DESC",
         100,
     )
     out = []
     for row in rows:
         live = int(live_lookup(int(row["id"]))) if live_lookup else 0
-        out.append(public_place(row, live))
+        liked = bool(liked_ids and int(row["id"]) in liked_ids)
+        out.append(public_place(row, live, liked))
     return out
+
+
+def list_liked(user_id: int, live_lookup=None) -> list[dict]:
+    """Esperienze visibili che l'utente ha messo tra i preferiti."""
+    rows = _select_places(
+        "p.id IN (SELECT place_id FROM place_likes WHERE user_id = ?)"
+        " AND p.visibility != 'private' AND p.current_version > 0",
+        [int(user_id)],
+        "p.likes DESC, p.visits DESC, p.updated_at DESC",
+        100,
+    )
+    out = []
+    for row in rows:
+        live = int(live_lookup(int(row["id"]))) if live_lookup else 0
+        out.append(public_place(row, live, True))
+    return out
+
+
+def author_stats(owner_id: int) -> dict:
+    row = db.connection().execute(
+        "SELECT COUNT(*) AS places, COALESCE(SUM(visits), 0) AS visits,"
+        " COALESCE(SUM(likes), 0) AS likes FROM places"
+        " WHERE owner_id = ? AND visibility = 'public' AND current_version > 0",
+        (int(owner_id),),
+    ).fetchone()
+    return {
+        "places": int(row["places"]),
+        "visits": int(row["visits"]),
+        "likes": int(row["likes"]),
+    }
 
 
 def get_place(place_id: int):
@@ -214,9 +260,9 @@ def get_place(place_id: int):
     ).fetchone()
 
 
-def get_place_detail(place_id: int, live: int = 0) -> dict | None:
+def get_place_detail(place_id: int, live: int = 0, liked: bool = False) -> dict | None:
     row = get_place(place_id)
-    return public_place(row, live) if row else None
+    return public_place(row, live, liked) if row else None
 
 
 def current_version(place_id: int):
@@ -230,6 +276,81 @@ def current_version(place_id: int):
 def increment_visits(place_id: int) -> None:
     conn = db.connection()
     conn.execute("UPDATE places SET visits = visits + 1 WHERE id = ?", (int(place_id),))
+    conn.commit()
+
+
+# --- Like -----------------------------------------------------------------------
+
+
+def liked_ids(user_id: int) -> set[int]:
+    rows = db.connection().execute(
+        "SELECT place_id FROM place_likes WHERE user_id = ?", (int(user_id),)
+    ).fetchall()
+    return {int(row["place_id"]) for row in rows}
+
+
+def is_liked(place_id: int, user_id: int | None) -> bool:
+    if user_id is None:
+        return False
+    row = db.connection().execute(
+        "SELECT 1 FROM place_likes WHERE user_id = ? AND place_id = ?",
+        (int(user_id), int(place_id)),
+    ).fetchone()
+    return row is not None
+
+
+def toggle_like(place_id: int, user_id: int) -> tuple[bool, int]:
+    """Aggiunge o rimuove il like. Ritorna (liked, conteggio aggiornato)."""
+    conn = db.connection()
+    try:
+        inserted = conn.execute(
+            "INSERT OR IGNORE INTO place_likes(user_id, place_id, created_at)"
+            " VALUES(?, ?, ?)",
+            (int(user_id), int(place_id), db.utc_now()),
+        ).rowcount
+        if inserted:
+            conn.execute(
+                "UPDATE places SET likes = likes + 1 WHERE id = ?", (int(place_id),)
+            )
+            liked = True
+        else:
+            removed = conn.execute(
+                "DELETE FROM place_likes WHERE user_id = ? AND place_id = ?",
+                (int(user_id), int(place_id)),
+            ).rowcount
+            if removed:
+                conn.execute(
+                    "UPDATE places SET likes = MAX(likes - 1, 0) WHERE id = ?",
+                    (int(place_id),),
+                )
+            liked = False
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    count = conn.execute(
+        "SELECT likes FROM places WHERE id = ?", (int(place_id),)
+    ).fetchone()
+    return liked, int(count["likes"]) if count else 0
+
+
+# --- Segnalazioni ---------------------------------------------------------------
+
+
+def add_report(place_id: int, reporter_id: int, reason: str, details: str = "") -> None:
+    reason = str(reason or "").strip().lower()
+    if reason not in REPORT_REASONS:
+        raise PlaceError("Motivo della segnalazione non valido.")
+    details = str(details or "").strip()[:MAX_REPORT_DETAILS]
+    conn = db.connection()
+    conn.execute(
+        "INSERT INTO reports(place_id, reporter_id, reason, details, created_at)"
+        " VALUES(?, ?, ?, ?, ?)"
+        " ON CONFLICT(place_id, reporter_id) DO UPDATE SET"
+        " reason = excluded.reason, details = excluded.details,"
+        " created_at = excluded.created_at",
+        (int(place_id), int(reporter_id), reason, details, db.utc_now()),
+    )
     conn.commit()
 
 
@@ -378,6 +499,17 @@ def get_version(place_id: int, version: int):
         "SELECT * FROM place_versions WHERE place_id = ? AND version = ?",
         (int(place_id), int(version)),
     ).fetchone()
+
+
+def rollback_version(place_id: int, version: int) -> int:
+    """Ripristina il contenuto di una versione creando una nuova versione corrente.
+
+    Lo storico resta append-only: il ripristino non cancella le versioni successive.
+    """
+    row = get_version(place_id, version)
+    if row is None:
+        raise PlaceError("Versione non trovata.")
+    return publish_version(place_id, str(row["data_json"]))
 
 
 def level_from_version(row) -> dict:

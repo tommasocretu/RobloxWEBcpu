@@ -22,6 +22,8 @@
         <div class="place-stats" id="place-stats"></div>
         <div class="play-row">
           <a class="btn btn-primary btn-big" id="play-button" href="#">▶ Gioca</a>
+          <button class="btn like-button" id="like-button" type="button" aria-pressed="false">♡ <span id="like-button-count">0</span></button>
+          <button class="btn btn-ghost" id="report-button" type="button">Segnala</button>
         </div>
         <p class="place-description" id="place-description"></p>
       </aside>
@@ -30,11 +32,42 @@
 </main>
 <footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
 
+<dialog class="edit-dialog" id="report-dialog">
+  <form id="report-form">
+    <h2>Segnala esperienza</h2>
+    <p class="small muted">La segnalazione viene registrata per la moderazione.</p>
+    <div class="alert" id="report-alert" hidden></div>
+    <div class="field">
+      <label for="report-reason">Motivo</label>
+      <select id="report-reason">
+        <option value="inappropriate">Contenuto inappropriato</option>
+        <option value="spam">Spam o truffa</option>
+        <option value="copyright">Violazione di copyright</option>
+        <option value="other">Altro</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="report-details">Dettagli (facoltativi)</label>
+      <textarea id="report-details" maxlength="500" rows="3"></textarea>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" type="button" id="report-cancel">Annulla</button>
+      <button class="btn btn-primary" type="submit" id="report-send">Invia segnalazione</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 (async function () {
   const id = RW.qs("id");
   const alertBox = document.getElementById("place-alert");
   const content = document.getElementById("place-content");
+  const likeButton = document.getElementById("like-button");
+  const reportButton = document.getElementById("report-button");
+  const reportDialog = document.getElementById("report-dialog");
+  const reportForm = document.getElementById("report-form");
+  const reportAlert = document.getElementById("report-alert");
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
 
   if (!id || !/^\d+$/.test(id)) {
     RW.setAlert(alertBox, "Esperienza non valida. Torna alla home e scegline una.", "error");
@@ -53,6 +86,10 @@
   }
 
   const place = result.data.place;
+  const me = await RW.me();
+  let liked = Boolean(place.liked);
+  let likes = Number(place.likes || 0);
+
   document.title = place.title + " — RobloxWeb";
   document.getElementById("place-media").innerHTML = RW.thumbHTML(place);
   document.getElementById("place-title").textContent = place.title;
@@ -61,6 +98,7 @@
     '<strong>' + RW.escape(place.author) + '</strong></a>';
   document.getElementById("place-stats").innerHTML =
     '<div><strong id="stat-visits">' + RW.formatNumber(place.visits) + '</strong>visite</div>' +
+    '<div><strong id="stat-likes">' + RW.formatNumber(likes) + '</strong>like</div>' +
     '<div><strong id="stat-live">' + RW.formatNumber(place.live_players) + '</strong>online ora</div>' +
     '<div><strong>v' + RW.formatNumber(place.current_version) + '</strong>versione</div>' +
     '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>aggiornata</div>';
@@ -72,6 +110,88 @@
     description.textContent = "Nessuna descrizione.";
     description.classList.add("muted");
   }
+
+  function renderLike() {
+    likeButton.classList.toggle("liked", liked);
+    likeButton.setAttribute("aria-pressed", liked ? "true" : "false");
+    likeButton.innerHTML =
+      (liked ? "♥" : "♡") +
+      ' <span id="like-button-count">' + RW.formatNumber(likes) + "</span>";
+    const stat = document.getElementById("stat-likes");
+    if (stat) stat.textContent = RW.formatNumber(likes);
+  }
+
+  renderLike();
+  if (me && Number(me.id) === Number(place.owner_id)) {
+    reportButton.hidden = true;
+  }
+
+  likeButton.addEventListener("click", async () => {
+    if (!me) {
+      window.location.href = "/login.html?next=" + next;
+      return;
+    }
+    if (me.is_guest) {
+      RW.setAlert(
+        alertBox,
+        "Gli ospiti non possono mettere like. Registrati per continuare.",
+        "warn"
+      );
+      return;
+    }
+    likeButton.disabled = true;
+    const toggled = await RW.api("/api/places/" + encodeURIComponent(place.id) + "/like", {
+      method: "POST",
+    });
+    likeButton.disabled = false;
+    if (!toggled.ok) {
+      RW.setAlert(alertBox, toggled.error, "error");
+      return;
+    }
+    liked = Boolean(toggled.data.liked);
+    likes = Number(toggled.data.likes || 0);
+    renderLike();
+  });
+
+  reportButton.addEventListener("click", () => {
+    if (!me) {
+      window.location.href = "/login.html?next=" + next;
+      return;
+    }
+    if (me.is_guest) {
+      RW.setAlert(
+        alertBox,
+        "Gli ospiti non possono segnalare contenuti. Registrati per continuare.",
+        "warn"
+      );
+      return;
+    }
+    RW.setAlert(reportAlert, "", "error");
+    reportDialog.showModal();
+  });
+  document.getElementById("report-cancel").addEventListener("click", () => reportDialog.close());
+
+  reportForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const send = document.getElementById("report-send");
+    send.disabled = true;
+    const sent = await RW.api("/api/places/" + encodeURIComponent(place.id) + "/report", {
+      method: "POST",
+      body: {
+        reason: document.getElementById("report-reason").value,
+        details: document.getElementById("report-details").value,
+      },
+    });
+    send.disabled = false;
+    if (!sent.ok) {
+      RW.setAlert(reportAlert, sent.error, "error");
+      return;
+    }
+    reportDialog.close();
+    document.getElementById("report-details").value = "";
+    RW.setAlert(alertBox, "Segnalazione inviata. Grazie per il contributo.", "info");
+  });
+
   content.hidden = false;
   await RW.initHeader();
 
@@ -84,6 +204,11 @@
     const live = document.getElementById("stat-live");
     if (visits) visits.textContent = RW.formatNumber(updated.visits);
     if (live) live.textContent = RW.formatNumber(updated.live_players);
+    if (updated.likes !== likes || Boolean(updated.liked) !== liked) {
+      likes = Number(updated.likes || 0);
+      liked = Boolean(updated.liked);
+      renderLike();
+    }
   }, 10000);
 })();
 </script>

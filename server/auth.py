@@ -15,6 +15,21 @@ import db
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,20}$")
 MIN_PASSWORD = 6
 MAX_PASSWORD = 200
+AVATAR_COLORS = (
+    "#2bd576",
+    "#4f8cff",
+    "#a06bd0",
+    "#ffcf4a",
+    "#ff7a59",
+    "#4fc2c2",
+    "#e06bb0",
+    "#8d6bd0",
+)
+
+
+def avatar_color(user_id: int) -> str:
+    """Colore stabile dell'avatar, derivato dall'id utente."""
+    return AVATAR_COLORS[int(user_id) % len(AVATAR_COLORS)]
 
 
 class AuthError(Exception):
@@ -67,6 +82,7 @@ def _public_user(row) -> dict:
         "id": int(row["id"]),
         "username": str(row["username"]),
         "name": str(row["display_name"]),
+        "avatar_color": avatar_color(int(row["id"])),
         "is_guest": bool(row["is_guest"]),
         "created_at": str(row["created_at"]),
     }

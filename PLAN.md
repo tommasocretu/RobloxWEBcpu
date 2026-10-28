@@ -2,9 +2,9 @@
 
 > Documento di handoff per l'implementazione.
 > Data: 28 ottobre 2026.
-> Prossima fase da implementare: **M4 — Scoperta**.
+> Prossima fase da implementare: **M5 — Robustezza**.
 >
-> **Stato (28 ottobre 2026): M0, M1, M2 e M3 completati e verificati.** M0: server HTTP+WS+SQLite,
+> **Stato (28 ottobre 2026): M0, M1, M2, M3 e M4 completati e verificati.** M0: server HTTP+WS+SQLite,
 > sito, client web, relay per place. M1: ownership, versioni, pubblicazione (API + pulsante
 > Pubblica nell'editor), thumbnail, profilo autore, contatori live aggiornati. M2: RobloxWeb
 > Studio desktop (start screen, login/offline, place browser, publish, thumbnail), preset
@@ -12,8 +12,12 @@
 > editor rimosso dal web. M3: VM Lua sandboxata (lexer/parser/compiler/bytecode/VM), stdlib,
 > API Roblox-like (`workspace`, `Instance.new`, `Touched`, Humanoid, `task.*`), scheduler con
 > budget, formato livello v2 con `scripts[]`, pannelli Script/Output e simulazione in Studio,
-> place demo **Demo script** seedata. Test Python/Godot e prova nel browser verdi.
-> Prossima milestone: **M4 — Scoperta**.
+> place demo **Demo script** seedata. M4: ricerca per titolo/autore, ordinamento per like e
+> recenti, like con elenco personale, profili autore con avatar colorato e statistiche,
+> storico versioni con rollback append-only, visibilità public/unlisted/private e
+> segnalazione contenuti; restrizioni ospite complete (like, segnalazioni, chat, publish).
+> Test Python/Godot e prova nel browser verdi.
+> Prossima milestone: **M5 — Robustezza**.
 >
 > Questo piano sostituisce la direzione precedente ("level select + editor dentro la build web").
 > L'obiettivo è il flusso classico Roblox: **sito → login/ospite → catalogo esperienze → Play →
@@ -479,13 +483,24 @@ deploy online.
 
 ### 6.5 M4 — Scoperta
 
-- Ricerca per titolo/autore, ordinamento popolari/recenti.
-- Like, visite, giocatori live.
-- Profilo autore con avatar/colore e lista esperienze.
-- Storico versioni e rollback.
-- Visibilità public/unlisted/private.
-- Restrizioni ospite complete (like/chat/publish).
-- Eventuale segnalazione contenuti.
+- [x] Ricerca per titolo/autore (`q`) e ordinamento `popular`, `likes`, `recent`, `visits`;
+  il catalogo espone `likes` e lo stato `liked` dell'utente corrente.
+- [x] Like: toggle per account (`POST /api/places/<id>/like`), tabella `place_likes`,
+  contatore denormalizzato su `places.likes`, elenco personale `GET /api/me/likes`.
+  Gli ospiti ricevono 403; un secondo click toglie il like.
+- [x] Visite e giocatori live restano sui contatori esistenti; i like pesano
+  nell'ordinamento "Popolari".
+- [x] Profilo autore con avatar colorato stabile (`avatar_color`), username, data di
+  iscrizione e statistiche pubbliche (esperienze, visite, like).
+- [x] Storico versioni visibile al proprietario nel profilo con data/dimensione e
+  **Ripristina**: il rollback crea una nuova versione corrente con il contenuto scelto
+  (`POST /api/places/<id>/versions/<v>/rollback`), senza cancellare lo storico.
+- [x] Visibilità public/unlisted/private applicata a catalogo, dettaglio, play e like.
+- [x] Restrizioni ospite complete: like, segnalazioni, chat e publish rifiutati dal server.
+- [x] Segnalazione contenuti (`POST /api/places/<id>/report`) con motivo, dettagli,
+  una segnalazione per utente/place e rate limit; UI nel dettaglio esperienza.
+- [x] Test Python per ricerca/ordinamento, like, rollback, segnalazioni, migrazione DB
+  e profilo pubblico; test browser per like, rollback, segnalazione e blocchi ospite.
 
 ### 6.6 M5 — Robustezza (pre-deploy)
 
@@ -509,12 +524,16 @@ deploy online.
 | POST | `/api/login` | no | sessione |
 | POST | `/api/logout` | sì | cancella sessione |
 | GET | `/api/me` | sì | utente corrente |
-| GET | `/api/places?sort=popular\|recent&q=` | no | card pubbliche |
-| GET | `/api/places/<id>` | no | dettaglio pubblico |
+| GET | `/api/places?sort=popular\|likes\|recent\|visits&q=` | no | card pubbliche, liked se autenticato |
+| GET | `/api/places/<id>` | no | dettaglio pubblico (private solo owner) |
 | GET | `/api/me/places` | sì | proprie place (Studio) |
+| GET | `/api/me/likes` | sì | esperienze che piacciono all'utente |
 | POST | `/api/places` | sì | crea place (M1) |
 | PUT | `/api/places/<id>` | owner | metadati (M1) |
+| POST | `/api/places/<id>/like` | account | toggle like, 403 agli ospiti (M4) |
+| POST | `/api/places/<id>/report` | account | segnalazione contenuti (M4) |
 | POST | `/api/places/<id>/versions` | owner | pubblica versione (M1) |
+| POST | `/api/places/<id>/versions/<v>/rollback` | owner | ripristina v come nuova versione (M4) |
 | GET | `/api/places/<id>/versions` | owner | storico (M1/M4) |
 | POST | `/api/places/<id>/thumbnail` | owner | PNG (M1) |
 | POST | `/api/places/<id>/play` | sì/ospite | livello + ticket + ws_url |
@@ -566,7 +585,8 @@ places(
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   current_version INTEGER NOT NULL DEFAULT 0,
-  visits INTEGER NOT NULL DEFAULT 0
+  visits INTEGER NOT NULL DEFAULT 0,
+  likes INTEGER NOT NULL DEFAULT 0
 );
 
 place_versions(
@@ -577,6 +597,23 @@ place_versions(
   thumbnail_path TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(place_id, version)
+);
+
+place_likes(
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  place_id INTEGER NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, place_id)
+);
+
+reports(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  place_id INTEGER NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+  reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  details TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  UNIQUE(place_id, reporter_id)
 );
 ```
 
@@ -768,13 +805,15 @@ server → client:
 ### 7.10 Sito: dettagli UI
 
 - Header: logo/nome, Home, Cerca, accedi/avatar, link Studio.
-- Home: hero + sezione "Popolari" con griglia di card scrollabile.
-- Card: thumbnail (o gradiente), titolo, autore, giocatori live, hover.
+- Home: hero + sezione "Popolari" con griglia di card scrollabile; ordinamento
+  Popolari/Più apprezzati/Recenti e ricerca per titolo o autore.
+- Card: thumbnail (o gradiente), titolo, autore, giocatori live, visite e like, hover.
 - Place: layout a due colonne (media + dettagli), Play verde grande, autore cliccabile,
-  descrizione, visite, aggiornato il.
+  descrizione, visite/like, aggiornato il; like e **Segnala** per gli account.
 - Play: top bar sottile + iframe fullscreen; overlay di caricamento; errore con "Torna al sito".
 - Login: due tab (Accedi/Registrati) + "Continua come ospite".
-- Profilo: avatar/nome, "Le mie esperienze", link a Studio.
+- Profilo: avatar colorato, nome/username, statistiche, "Le mie esperienze",
+  storico versioni con rollback, elenco dei like, link a Studio.
 - Studio: download Windows/Linux + istruzioni.
 - Mobile: non prioritario in M0; layout responsive di base.
 
@@ -795,7 +834,9 @@ server → client:
 - Server avviato su porte effimere e DB temporaneo.
 - Casi: register/login/logout, sessione scaduta, guest, 401/403, ownership, lista place,
   play/visite, pubblicazione (M1), visibilità, MIME `.wasm`, path traversal, body troppo grande,
-  WS isolamento stanze, chat ospite bloccata, ticket scaduto/falsificato.
+  WS isolamento stanze, chat ospite bloccata, ticket scaduto/falsificato; ricerca e
+  ordinamento, like (toggle, ospiti, elenco personale), rollback append-only, segnalazioni,
+  migrazione DB v2 e statistiche del profilo autore (M4).
 
 ### Godot headless
 

@@ -27,6 +27,7 @@
       <h2 id="section-title">Popolari</h2>
       <div class="main-nav" id="sort-nav">
         <a href="#" data-sort="popular">Popolari</a>
+        <a href="#" data-sort="likes">Più apprezzati</a>
         <a href="#" data-sort="recent">Recenti</a>
       </div>
     </div>
@@ -44,6 +45,7 @@
   const alertBox = document.getElementById("home-alert");
   const title = document.getElementById("section-title");
   const query = RW.qs("q") || "";
+  const SORT_LABELS = { popular: "Popolari", likes: "Più apprezzati", recent: "Recenti" };
   let sort = "popular";
 
   if (query) {
@@ -84,6 +86,9 @@
     const items = result.data.places || [];
     grid.innerHTML = items.map(RW.card).join("");
     empty.hidden = items.length > 0;
+    if (!query) {
+      title.textContent = SORT_LABELS[sort] || "Esperienze";
+    }
     document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
       link.style.color = link.dataset.sort === sort ? "#fff" : "";
       link.style.fontWeight = link.dataset.sort === sort ? "700" : "";
