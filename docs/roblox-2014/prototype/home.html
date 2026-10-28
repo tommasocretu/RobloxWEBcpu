@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PROTOTIPO · Home 2014 · RobloxWeb</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prototype.css">
+</head>
+<body data-prototype="home">
+
+  <header class="site-header">
+    <div class="inner">
+      <a class="brand" href="#"><span class="stud"></span>ROBLOXWEB</a>
+      <nav class="main-nav">
+        <a href="#">Home</a>
+        <a href="#" aria-current="page">Giochi</a>
+        <a href="#">Crea</a>
+        <a href="#">Studio</a>
+        <a href="#">Profilo</a>
+        <a class="more" href="#">Altro ▾</a>
+      </nav>
+      <div class="header-account">
+        <a class="btn-control btn-control-large signup" href="#">Registrati</a>
+        <span class="or">oppure</span>
+        <a class="btn-control btn-control-large" href="#">Accedi</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ================= A — griglia 2014 con sidebar ================= -->
+    <section class="body" data-variant="A">
+      <h1 class="page-title">Giochi</h1>
+
+      <div class="filters">
+        <div class="filter">
+          <h3>Filtra per:</h3>
+          <select>
+            <option>Popolari</option>
+            <option>Più apprezzati</option>
+            <option>Recenti</option>
+            <option>Più giocati</option>
+          </select>
+        </div>
+        <div class="filter">
+          <h3>Tempo:</h3>
+          <select>
+            <option>Adesso</option>
+            <option>Ultimo giorno</option>
+            <option>Ultima settimana</option>
+          </select>
+        </div>
+        <div class="filter">
+          <h3>Genere:</h3>
+          <select>
+            <option>Tutti</option>
+            <option>Avventura</option>
+            <option>Obby</option>
+            <option>Costruzione</option>
+            <option>Sopravvivenza</option>
+          </select>
+        </div>
+        <div class="games-search">
+          <input type="text" placeholder="Cerca giochi">
+          <button class="icon" aria-label="Cerca">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><circle cx="10" cy="10" r="7"/><path d="M15 15l6 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="games-layout">
+        <div class="games-main">
+          <div class="games-list-header">
+            <h2 class="section-title">Popolari</h2>
+            <a class="btn btn-medium btn-neutral see-all" href="#">Vedi tutti</a>
+          </div>
+          <div class="game-grid" id="grid-a"></div>
+        </div>
+        <div class="sidebar-slot"></div>
+      </div>
+    </section>
+
+    <!-- ================= B — home attuale, pelle 2014 ================= -->
+    <section class="body" data-variant="B">
+      <div class="hero-2014">
+        <div class="hero-copy">
+          <h1>Benvenuto su RobloxWeb</h1>
+          <p>Costruisci, pubblica e gioca esperienze fatte di blocchi. Tutto quello che serve è qui: un mondo, i tuoi amici e un po' di immaginazione.</p>
+          <div class="hero-actions">
+            <a class="btn btn-medium btn-primary btn-play" href="#">Gioca ora</a>
+            <a class="btn btn-medium btn-neutral" href="#">Crea</a>
+          </div>
+        </div>
+        <div class="hero-art">
+          <span class="badge-2014">In evidenza · Lava Escape</span>
+        </div>
+      </div>
+
+      <div class="filter-tabs">
+        <a class="active" href="#">Popolari</a>
+        <a href="#">Più apprezzati</a>
+        <a href="#">Recenti</a>
+        <a href="#">Più giocati</a>
+      </div>
+
+      <div class="game-grid game-grid-4" id="grid-b"></div>
+    </section>
+
+    <!-- ================= C — vetrina 2014 ================= -->
+    <section class="body" data-variant="C">
+      <section class="featured-2014">
+        <div class="featured-content">
+          <div class="kicker">In evidenza</div>
+          <h1>Lava Escape</h1>
+          <p>Corri, salta e non fermarti: il pavimento non è tuo amico.</p>
+          <a class="btn btn-medium btn-primary btn-play" href="#">Gioca ora</a>
+          <div class="meta">2.4k che giocano · ★ 512</div>
+        </div>
+      </section>
+
+      <div class="games-layout">
+        <div class="games-main">
+          <div class="games-list-header">
+            <h2 class="section-title">Scelti per te</h2>
+            <a class="btn btn-medium btn-neutral see-all" href="#">Vedi tutti</a>
+          </div>
+          <div class="game-grid" id="grid-c"></div>
+        </div>
+        <div class="sidebar-slot"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="inner">
+      <div class="links">
+        <a href="#">Chi siamo</a>
+        <a href="#">Termini</a>
+        <a href="#">Privacy</a>
+        <a href="#">Aiuto</a>
+        <a href="#">Studio</a>
+      </div>
+      <div class="legal">© 2014 RobloxWeb · Prototipo di design, non un sito reale.</div>
+    </div>
+  </footer>
+
+  <template id="sidebar-tpl">
+    <aside class="sidebar">
+      <div class="side-box mini-feature">
+        <h3>In evidenza</h3>
+        <div class="mini-thumb"></div>
+        <div class="mini-body">
+          <div class="mini-title">Lava Escape</div>
+          <div class="mini-meta">di RobloxWeb · 2.4k che giocano</div>
+          <a class="btn btn-small btn-primary btn-play" href="#">Gioca</a>
+        </div>
+      </div>
+
+      <div class="side-box">
+        <h3>Notizie</h3>
+        <div class="pad">
+          <ul class="news-list">
+            <li><span class="date">18 giugno 2014</span><a href="#">Nuova gara di costruzioni questo weekend</a></li>
+            <li><span class="date">12 giugno 2014</span><a href="#">Aggiornamento: script più veloci</a></li>
+            <li><span class="date">5 giugno 2014</span><a href="#">I giochi più giocati di maggio</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="side-box">
+        <h3>Top creatori</h3>
+        <div class="pad">
+          <div class="creator-row"><span class="avatar-chip" style="--a:#0d69ac;--b:#27462d"></span><a href="#">RobloxWeb</a></div>
+          <div class="creator-row"><span class="avatar-chip" style="--a:#c4281c;--b:#f5cd30"></span><a href="#">Blocco99</a></div>
+          <div class="creator-row"><span class="avatar-chip" style="--a:#6b327c;--b:#b480ff"></span><a href="#">LavaGirl</a></div>
+          <div class="creator-row"><span class="avatar-chip" style="--a:#da8541;--b:#27462d"></span><a href="#">BuilderMax</a></div>
+        </div>
+      </div>
+    </aside>
+  </template>
+
+  <div class="proto-switcher" data-switcher>
+    <button data-prev aria-label="Variante precedente">←</button>
+    <span class="label" data-label>A — Griglia 2014</span>
+    <button data-next aria-label="Variante successiva">→</button>
+    <span class="hint">?variant=A|B|C</span>
+  </div>
+
+  <script src="prototype.js"></script>
+</body>
+</html>

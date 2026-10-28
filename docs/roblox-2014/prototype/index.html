@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prototipo — Estetica Roblox 2014</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prototype.css">
+  <style>
+    .proto-index { width: min(760px, calc(100% - 32px)); margin: 48px auto; padding: 28px; background: #fff; border: 1px solid #ccc; }
+    .proto-index h1 { margin: 0 0 6px; font-size: 32px; letter-spacing: -1px; }
+    .proto-index p, .proto-index li { font-size: 15px; line-height: 1.5; }
+    .proto-index code { background: #f1f1f1; padding: 1px 4px; border: 1px solid #ddd; font-size: 13px; }
+    .proto-index .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 22px 0; }
+    .proto-index .cards a { display: block; padding: 16px; border: 1px solid #ccc; color: #343434; text-decoration: none; }
+    .proto-index .cards a:hover { border-color: #888; background: #f7f7f7; text-decoration: none; }
+    .proto-index .cards b { display: block; font-size: 20px; color: #0055b3; }
+    .proto-index .warn { padding: 10px; background: #fae5e5; border: 1px solid #cc0000; color: #7a0000; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main class="proto-index">
+    <h1>Prototipo — estetica Roblox 2014</h1>
+    <p>Artefatto usa-e-getta per scegliere il look prima di scrivere la specifica. Non è codice di produzione e non tocca il sito reale.</p>
+
+    <div class="cards">
+      <a href="home.html?variant=B"><b>Home →</b> Tre strutture di catalogo: griglia 2014 con sidebar, home attuale con pelle 2014, vetrina.</a>
+      <a href="client.html?variant=B"><b>Client →</b> Tre HUD: fedele 2014 senza topbar, ibrido con topbar HTML, HUD attuale ridipinto.</a>
+    </div>
+
+    <p>Ogni pagina ha il selettore in basso: <code>?variant=A|B|C</code>, frecce ← → della tastiera. Nel client: <code>Esc</code> apre il menu, <code>/</code> apre la chat, i pulsanti <code>PROTOTIPO</code> mostrano caricamento e notifica.</p>
+
+    <p class="warn"><b>Non copiare nulla di questo nella produzione:</b> il prototipo è pensato per essere buttato. Le decisioni validate finiscono nei ticket della mappa.</p>
+  </main>
+</body>
+</html>

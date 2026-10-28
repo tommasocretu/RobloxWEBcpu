@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PROTOTIPO · Client 2014 · RobloxWeb</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prototype.css">
+</head>
+<body class="client-page" data-prototype="client">
+
+  <!-- Chrome del sito: esiste solo nella variante B (ibrida) -->
+  <div class="html-topbar" data-topbar hidden>
+    <a class="brand" href="home.html"><span class="stud"></span>ROBLOXWEB</a>
+    <span class="crumb"><b>Welcome Obby</b> · di RobloxWeb</span>
+    <span class="spacer"></span>
+    <span class="crumb">3 giocatori</span>
+    <button class="btn-control" data-leave>Esci</button>
+  </div>
+
+  <div class="game-viewport">
+    <div class="world" aria-hidden="true">
+      <div class="cloud c1"></div>
+      <div class="cloud c2"></div>
+      <div class="plat p1"></div>
+      <div class="plat p2"></div>
+      <div class="plat p3"></div>
+      <div class="plat p4"></div>
+      <div class="plat p5"></div>
+      <div class="plat p6"></div>
+      <div class="spawn"></div>
+      <div class="lava"></div>
+      <div class="coin c1"></div>
+      <div class="avatar">
+        <span class="arm l"></span>
+        <span class="head"></span>
+        <span class="torso"></span>
+        <span class="legs"></span>
+        <span class="arm r"></span>
+      </div>
+    </div>
+
+    <!-- ================= A — fedele 2014 ================= -->
+    <div class="hud" data-variant="A">
+      <div class="chat">
+        <div class="log">
+          <div class="line sys">Benvenuto in Welcome Obby!</div>
+          <div class="line"><span class="name" style="color:#0d69ac">Blocco99</span>: Ciao!</div>
+          <div class="line"><span class="name" style="color:#c4281c">tu</span>: Andiamo al traguardo</div>
+          <div class="line"><span class="name" style="color:#b480ff">LavaGirl</span>: Attenti alla lava</div>
+          <div class="line sys">Checkpoint raggiunto: +1 moneta</div>
+        </div>
+      </div>
+
+      <div class="playerlist" data-playerlist>
+        <div class="pl-head" data-collapse>
+          <span>Giocatori</span>
+          <span class="coins-head">Monete</span>
+        </div>
+        <div class="pl-row me"><span><span class="icon"></span>tu</span><span class="coins">3</span></div>
+        <div class="pl-row"><span>Blocco99</span><span class="coins">0</span></div>
+        <div class="pl-row"><span>LavaGirl</span><span class="coins">1</span></div>
+        <div class="pl-row"><span>BuilderMax</span><span class="coins">5</span></div>
+      </div>
+
+      <button class="menu-btn" data-open-menu aria-label="Apri il menu di gioco">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 11l9-7 9 7v9H3z"/><path d="M9 20v-6h6v6"/></svg>
+        Menu
+      </button>
+
+      <div class="health">
+        <div class="fill"></div>
+        <span class="label">Salute</span>
+      </div>
+
+      <input class="chat-bar" type="text" placeholder="Per chattare clicca qui o premi &quot;/&quot;" aria-label="Chat">
+    </div>
+
+    <!-- ================= B — ibrida: topbar HTML + HUD 2014 ================= -->
+    <div class="hud" data-variant="B">
+      <div class="chat">
+        <div class="log">
+          <div class="line sys">Benvenuto in Welcome Obby!</div>
+          <div class="line"><span class="name" style="color:#0d69ac">Blocco99</span>: Ciao!</div>
+          <div class="line"><span class="name" style="color:#c4281c">tu</span>: Andiamo al traguardo</div>
+          <div class="line"><span class="name" style="color:#b480ff">LavaGirl</span>: Attenti alla lava</div>
+          <div class="line sys">Checkpoint raggiunto: +1 moneta</div>
+        </div>
+      </div>
+
+      <div class="playerlist" data-playerlist>
+        <div class="pl-head" data-collapse>
+          <span>Giocatori</span>
+          <span class="coins-head">Monete</span>
+        </div>
+        <div class="pl-row me"><span><span class="icon"></span>tu</span><span class="coins">3</span></div>
+        <div class="pl-row"><span>Blocco99</span><span class="coins">0</span></div>
+        <div class="pl-row"><span>LavaGirl</span><span class="coins">1</span></div>
+        <div class="pl-row"><span>BuilderMax</span><span class="coins">5</span></div>
+      </div>
+
+      <button class="menu-btn" data-open-menu aria-label="Apri il menu di gioco">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 11l9-7 9 7v9H3z"/><path d="M9 20v-6h6v6"/></svg>
+        Menu
+      </button>
+
+      <div class="health">
+        <div class="fill"></div>
+        <span class="label">Salute</span>
+      </div>
+
+      <input class="chat-bar" type="text" placeholder="Per chattare clicca qui o premi &quot;/&quot;" aria-label="Chat">
+    </div>
+
+    <!-- ================= C — HUD attuale, pelle 2014 ================= -->
+    <div class="hud" data-variant="C">
+      <div class="coins-hud"><span class="coin-chip"></span>Monete: 3 / 10</div>
+      <div class="players-hud">Giocatori: 3</div>
+
+      <div class="chat chat-bottom">
+        <div class="log">
+          <div class="line sys">Benvenuto in Welcome Obby!</div>
+          <div class="line"><span class="name" style="color:#0d69ac">Blocco99</span>: Ciao!</div>
+          <div class="line"><span class="name" style="color:#c4281c">tu</span>: Andiamo al traguardo</div>
+          <div class="line"><span class="name" style="color:#b480ff">LavaGirl</span>: Attenti alla lava</div>
+          <div class="line sys">Checkpoint raggiunto: +1 moneta</div>
+        </div>
+      </div>
+
+      <div class="health">
+        <div class="fill"></div>
+        <span class="label">Salute</span>
+      </div>
+
+      <input class="chat-bar" type="text" placeholder="Per chattare clicca qui o premi &quot;/&quot;" aria-label="Chat">
+    </div>
+
+    <!-- ================= overlay condivisi ================= -->
+    <div class="shield" data-shield></div>
+
+    <div class="game-menu" data-menu>
+      <h2>Menu di gioco</h2>
+      <button class="default" data-close-menu>Riprendi</button>
+      <button data-noop>Reimposta personaggio</button>
+      <button data-noop>Impostazioni</button>
+      <button data-noop>Aiuto</button>
+      <button data-leave>Esci dall'esperienza</button>
+    </div>
+
+    <div class="leave-dialog" data-leave-dialog>
+      <h2>Lasciare questa esperienza?</h2>
+      <div class="actions">
+        <button class="default" data-stay>Resta</button>
+        <button data-confirm-leave>Esci</button>
+      </div>
+    </div>
+
+    <div class="loading-screen" data-loading>
+      <div class="spinner"></div>
+      <div class="word">CARICAMENTO</div>
+    </div>
+
+    <div class="toast" data-toast>
+      <div class="icon"></div>
+      <div>
+        <div class="title">Richiesta di amicizia</div>
+        <div class="toast-body">Blocco99 vuole essere tuo amico.</div>
+      </div>
+    </div>
+
+    <div class="proto-toolbar">
+      <b>PROTOTIPO</b>
+      <button data-show-game>Gioco</button>
+      <button data-show-loading>Caricamento</button>
+      <button data-show-toast>Notifica</button>
+      <span>Esc = menu</span>
+    </div>
+
+    <div class="proto-switcher" data-switcher>
+      <button data-prev aria-label="Variante precedente">←</button>
+      <span class="label" data-label>A — Fedele 2014</span>
+      <button data-next aria-label="Variante successiva">→</button>
+      <span class="hint">?variant=A|B|C</span>
+    </div>
+  </div>
+
+  <script src="prototype.js"></script>
+</body>
+</html>
