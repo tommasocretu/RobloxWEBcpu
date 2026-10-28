@@ -68,6 +68,7 @@ def _public_user(row) -> dict:
         "username": str(row["username"]),
         "name": str(row["display_name"]),
         "is_guest": bool(row["is_guest"]),
+        "created_at": str(row["created_at"]),
     }
 
 

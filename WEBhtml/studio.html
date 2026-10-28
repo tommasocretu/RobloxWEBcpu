@@ -15,26 +15,38 @@
     <div>
       <h1>RobloxWeb Studio</h1>
       <p>
-        L'editor desktop per costruire le tue esperienze: piazza parti, usa gli strumenti
-        dell'editor attuale e pubblica sul server della piattaforma.
+        L'editor per costruire le tue esperienze: piazza parti, usa gli strumenti dell'editor
+        attuale e premi <strong>Pubblica</strong> per creare una nuova esperienza o una nuova
+        versione sul server.
       </p>
       <p class="muted" style="margin-top:18px">
-        Il download per Windows e Linux sarà disponibile nella milestone M2. Fino ad allora
-        puoi usare l'editor in locale dal progetto Godot.
+        Il binario desktop autonomo (Windows e Linux) arriva con la milestone M2. Fino ad allora
+        si usa l'editor incluso nel progetto Godot.
       </p>
       <div class="play-row">
-        <button class="btn btn-primary" disabled>Download Windows (.exe) — in arrivo</button>
+        <a class="btn btn-primary" href="/dev/index.html?editor=1">Apri l'editor nel browser</a>
+        <button class="btn" disabled>Download Windows (.exe) — in arrivo</button>
         <button class="btn" disabled>Download Linux — in arrivo</button>
       </div>
+      <p class="small muted" style="margin-top:14px">
+        L'editor nel browser è temporaneo (serve a provare il flusso di pubblicazione) e
+        richiede che l'export Web sia presente in <code>WEBhtml/dev/</code>.
+      </p>
     </div>
     <aside class="studio-box">
-      <h2>Cosa saprà fare</h2>
+      <h2>Come pubblicare</h2>
       <ul>
-        <li>Creare e modificare place con palette, proprietà e undo/redo.</li>
-        <li>Accedere con lo stesso account del sito.</li>
-        <li>Pubblicare versioni, titolo, descrizione e thumbnail.</li>
-        <li>Provare l'esperienza in locale prima di pubblicarla.</li>
+        <li>Apri l'editor e costruisci il livello.</li>
+        <li>Premi <strong>Pubblica</strong> e accedi con il tuo account del sito.</li>
+        <li>Scegli titolo, descrizione e visibilità, poi conferma.</li>
+        <li>La thumbnail viene catturata dalla vista corrente dell'editor.</li>
+        <li>La pagina esperienza mostra subito la nuova versione.</li>
       </ul>
+      <h2>Editor nativo</h2>
+      <p class="small muted" style="margin:0 0 14px">
+        <code>flatpak run org.godotengine.Godot --path Godot/robloxwebengine</code><br>
+        Livello predefinito → <strong>Editor</strong>.
+      </p>
       <a class="btn btn-block" href="/">Torna al catalogo</a>
     </aside>
   </section>

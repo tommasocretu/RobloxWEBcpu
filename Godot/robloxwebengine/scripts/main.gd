@@ -71,15 +71,18 @@ func _ready() -> void:
 		start_level(request)
 		_on_play_pressed()
 	elif OS.has_feature("studio"):
-		get_tree().change_scene_to_file(EDITOR_SCENE_PATH)
+		get_tree().call_deferred("change_scene_to_file", EDITOR_SCENE_PATH)
 	elif OS.has_feature("web"):
+		if place_client.read_query_param("editor") == "1":
+			# Editor web temporaneo (M1): la build definitiva lo esclude in M2.
+			get_tree().call_deferred("change_scene_to_file", EDITOR_SCENE_PATH)
+			return
 		# Client web: nessun LevelSelect/Menu/editor, si carica la place da `?place=`.
 		level_select.visible = false
 		menu.visible = false
 		hud.visible = false
 		_show_boot("Caricamento esperienza…", "Connessione al server e preparazione del mondo.")
-		if not place_client.start():
-			pass
+		place_client.start()
 	else:
 		level_select.visible = true
 

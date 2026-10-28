@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import posixpath
+import re
 import sys
 import threading
 import time
@@ -141,6 +142,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
     # --- dispatch ----------------------------------------------------------
 
     def _dispatch(self, method: str) -> None:
+        self._body_read = False
         try:
             if method in ("POST", "PUT", "DELETE"):
                 self._check_origin()
@@ -148,17 +150,49 @@ class PlatformHandler(BaseHTTPRequestHandler):
             path = unquote(parsed.path)
             if path.startswith("/api/") or path == "/api":
                 self._handle_api(method, path, parse_qs(parsed.query))
+            elif path.startswith("/thumbs/"):
+                if method not in ("GET", "HEAD"):
+                    raise ApiError(405, "Metodo non consentito.")
+                self._serve_thumbnail(path)
             elif method in ("GET", "HEAD"):
                 self._serve_static(path)
             else:
                 raise ApiError(405, "Metodo non consentito.")
         except ApiError as exc:
+            self._drain_on_error()
             self._send_json(exc.status, {"error": exc.message})
         except BrokenPipeError:
             pass
         except Exception as exc:  # pragma: no cover - log di sicurezza
             print(f"[http] errore interno: {exc!r}")
+            self._drain_on_error()
             self._send_json(500, {"error": "Errore interno del server."})
+
+    def _drain_on_error(self) -> None:
+        """Consuma un body non letto prima di rispondere a un errore.
+
+        Senza questo, su una connessione keep-alive i byte del body verrebbero
+        interpretati come inizio della richiesta successiva.
+        """
+        if getattr(self, "_body_read", False):
+            return
+        try:
+            length = self._content_length()
+        except ApiError:
+            self.close_connection = True
+            return
+        if length <= 0:
+            self._body_read = True
+            return
+        if length > config.MAX_LEVEL_BYTES:
+            # Troppo grande per essere consumato in sicurezza: chiudi la connessione.
+            self.close_connection = True
+            return
+        try:
+            self.rfile.read(length)
+        except OSError:
+            self.close_connection = True
+        self._body_read = True
 
     def _check_origin(self) -> None:
         origin = self.headers.get("Origin")
@@ -238,17 +272,50 @@ class PlatformHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"user": auth.public_user(user)})
             return
 
+        if route == ["token"] and method == "POST":
+            self._limit("login")
+            body = self._read_json()
+            user = auth.authenticate(
+                str(body.get("username", "")), str(body.get("password", ""))
+            )
+            if user is None:
+                raise ApiError(401, "Username o password non validi.")
+            token = auth.create_session(int(user["id"]))
+            self._send_json(
+                200,
+                {
+                    "token": token,
+                    "user": auth.public_user(user),
+                    "expires_in": config.SESSION_DAYS * 24 * 60 * 60,
+                },
+            )
+            return
+
         if route == ["me", "places"] and method == "GET":
             if user is None:
                 raise ApiError(401, "Sessione mancante o scaduta.")
-            rows = db.connection().execute(
-                "SELECT p.*, u.display_name AS author FROM places p"
-                " JOIN users u ON u.id = p.owner_id WHERE p.owner_id = ?"
-                " ORDER BY p.updated_at DESC",
-                (int(user["id"]),),
-            ).fetchall()
-            items = [places.public_place(row, self.platform.live(int(row["id"]))) for row in rows]
-            self._send_json(200, {"places": items})
+            self._send_json(
+                200, {"places": places.list_owned(int(user["id"]), self.platform.live)}
+            )
+            return
+
+        if len(route) == 2 and route[0] == "users" and method == "GET":
+            author = auth.get_user_by_id(self._place_id(route[1]))
+            if author is None or bool(author["is_guest"]):
+                raise ApiError(404, "Utente non trovato.")
+            self._send_json(
+                200,
+                {
+                    "user": {
+                        "id": int(author["id"]),
+                        "name": str(author["display_name"]),
+                        "created_at": str(author["created_at"]),
+                    },
+                    "places": places.list_by_author(
+                        int(author["id"]), self.platform.live
+                    ),
+                },
+            )
             return
 
         if route == ["places"] and method == "GET":
@@ -256,6 +323,38 @@ class PlatformHandler(BaseHTTPRequestHandler):
             q = str(query.get("q", [""])[0])[:80]
             items = places.list_places(sort, q, live_lookup=self.platform.live)
             self._send_json(200, {"places": items, "total": len(items)})
+            return
+
+        if route == ["places"] and method == "POST":
+            self._limit("publish")
+            owner = self._require_user(user)
+            if bool(owner["is_guest"]):
+                raise ApiError(403, "Gli ospiti non possono pubblicare esperienze.")
+            body = self._read_json(config.MAX_PUBLISH_BODY)
+            try:
+                data_text, level = places.prepare_level(
+                    body.get("level", body.get("data"))
+                )
+                meta = level.get("meta") if isinstance(level.get("meta"), dict) else {}
+                place_id = places.create_place(
+                    int(owner["id"]),
+                    places.clean_title(body.get("title") or meta.get("title", "")),
+                    body.get("description", ""),
+                    data_text,
+                    body.get("visibility", "public"),
+                )
+            except places.PlaceError as exc:
+                raise ApiError(400, str(exc))
+            row = places.get_place(place_id)
+            self._send_json(
+                201,
+                {
+                    "place": places.public_place(
+                        row, self.platform.live(place_id)
+                    ),
+                    "version": 1,
+                },
+            )
             return
 
         if len(route) == 2 and route[0] == "places" and method == "GET":
@@ -267,6 +366,41 @@ class PlatformHandler(BaseHTTPRequestHandler):
                 raise ApiError(403, "Esperienza privata.")
             detail = places.public_place(row, self.platform.live(place_id))
             self._send_json(200, {"place": detail})
+            return
+
+        if len(route) == 2 and route[0] == "places" and method == "PUT":
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            row = self._owned_place(place_id, owner)
+            body = self._read_json()
+            fields = {
+                key: body[key]
+                for key in ("title", "description", "visibility")
+                if key in body
+            }
+            if not fields:
+                raise ApiError(400, "Nessun campo da aggiornare.")
+            places.update_place(place_id, fields)
+            row = places.get_place(place_id)
+            self._send_json(
+                200,
+                {"place": places.public_place(row, self.platform.live(place_id))},
+            )
+            return
+
+        if len(route) == 2 and route[0] == "places" and method == "DELETE":
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            self._discard_body()
+            conn = db.connection()
+            conn.execute("DELETE FROM places WHERE id = ?", (place_id,))
+            conn.commit()
+            try:
+                places.thumbnail_file(place_id).unlink()
+            except OSError:
+                pass
+            self._send_json(200, {"ok": True})
             return
 
         if len(route) == 3 and route[0] == "places" and route[2] == "play" and method == "POST":
@@ -283,9 +417,9 @@ class PlatformHandler(BaseHTTPRequestHandler):
             if version is None:
                 raise ApiError(503, "L'esperienza non ha ancora una versione pubblicata.")
             try:
-                level = json.loads(str(version["data_json"]))
-            except json.JSONDecodeError:
-                raise ApiError(500, "Livello non leggibile sul server.")
+                level = places.level_from_version(version)
+            except places.PlaceError as exc:
+                raise ApiError(500, str(exc))
             places.increment_visits(place_id)
             ticket = auth.make_ticket(user, place_id)
             self._send_json(
@@ -305,7 +439,138 @@ class PlatformHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if len(route) == 3 and route[0] == "places" and route[2] == "versions" and method == "POST":
+            self._limit("publish")
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            body = self._read_json(config.MAX_PUBLISH_BODY)
+            try:
+                data_text, _level = places.prepare_level(
+                    body.get("level", body.get("data"))
+                )
+                fields = {
+                    key: body[key]
+                    for key in ("title", "description", "visibility")
+                    if key in body
+                }
+                version = places.publish_version(place_id, data_text, fields)
+            except places.PlaceError as exc:
+                raise ApiError(400, str(exc))
+            row = places.get_place(place_id)
+            self._send_json(
+                200,
+                {
+                    "place": places.public_place(
+                        row, self.platform.live(place_id)
+                    ),
+                    "version": version,
+                },
+            )
+            return
+
+        if len(route) == 3 and route[0] == "places" and route[2] == "versions" and method == "GET":
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            self._send_json(
+                200,
+                {
+                    "place_id": place_id,
+                    "versions": places.list_versions(place_id),
+                },
+            )
+            return
+
+        if (
+            len(route) == 4
+            and route[0] == "places"
+            and route[2] == "versions"
+            and method == "GET"
+        ):
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            version = places.get_version(place_id, self._place_id(route[3]))
+            if version is None:
+                raise ApiError(404, "Versione non trovata.")
+            try:
+                level = places.level_from_version(version)
+            except places.PlaceError as exc:
+                raise ApiError(500, str(exc))
+            self._send_json(
+                200,
+                {
+                    "place_id": place_id,
+                    "version": int(version["version"]),
+                    "created_at": str(version["created_at"]),
+                    "level": level,
+                },
+            )
+            return
+
+        if len(route) == 3 and route[0] == "places" and route[2] == "data" and method == "GET":
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            version = places.current_version(place_id)
+            if version is None:
+                raise ApiError(404, "L'esperienza non ha ancora una versione pubblicata.")
+            try:
+                level = places.level_from_version(version)
+            except places.PlaceError as exc:
+                raise ApiError(500, str(exc))
+            row = places.get_place(place_id)
+            self._send_json(
+                200,
+                {
+                    "place": places.public_place(
+                        row, self.platform.live(place_id)
+                    ),
+                    "version": int(version["version"]),
+                    "level": level,
+                },
+            )
+            return
+
+        if len(route) == 3 and route[0] == "places" and route[2] == "thumbnail" and method == "POST":
+            owner = self._require_user(user, allow_guest=False)
+            place_id = self._place_id(route[1])
+            self._owned_place(place_id, owner)
+            data = self._read_raw(config.MAX_THUMBNAIL_BYTES)
+            try:
+                version = places.set_thumbnail(place_id, data)
+            except places.PlaceError as exc:
+                raise ApiError(400, str(exc))
+            row = places.get_place(place_id)
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "version": version,
+                    "place": places.public_place(
+                        row, self.platform.live(place_id)
+                    ),
+                },
+            )
+            return
+
         raise ApiError(404, "Endpoint non trovato.")
+
+    def _require_user(self, user, allow_guest: bool = True):
+        if user is None:
+            raise ApiError(401, "Sessione mancante o scaduta.")
+        if not allow_guest and bool(user["is_guest"]):
+            raise ApiError(403, "Gli ospiti non possono modificare esperienze.")
+        return user
+
+    def _owned_place(self, place_id: int, user):
+        row = places.get_place(place_id)
+        if row is None:
+            raise ApiError(404, "Esperienza non trovata.")
+        if not places.is_owner(row, int(user["id"])):
+            raise ApiError(403, "Non sei l'autore di questa esperienza.")
+        return row
 
     def _limit(self, scope: str) -> None:
         key = f"{self.client_address[0]}:{scope}"
@@ -348,12 +613,15 @@ class PlatformHandler(BaseHTTPRequestHandler):
             raise ApiError(413, "Corpo della richiesta troppo grande.")
         if length:
             self.rfile.read(length)
+        self._body_read = True
 
-    def _read_json(self) -> dict:
+    def _read_json(self, limit: int | None = None) -> dict:
+        limit = config.MAX_JSON_BODY if limit is None else int(limit)
         length = self._content_length()
-        if length > config.MAX_JSON_BODY:
+        if length > limit:
             raise ApiError(413, "Corpo della richiesta troppo grande.")
         raw = self.rfile.read(length) if length else b""
+        self._body_read = True
         if not raw:
             return {}
         try:
@@ -363,6 +631,15 @@ class PlatformHandler(BaseHTTPRequestHandler):
         if not isinstance(value, dict):
             raise ApiError(400, "Il corpo deve essere un oggetto JSON.")
         return value
+
+    def _read_raw(self, limit: int) -> bytes:
+        length = self._content_length()
+        if length <= 0:
+            raise ApiError(400, "Corpo della richiesta mancante.")
+        if length > limit:
+            raise ApiError(413, "File troppo grande.")
+        self._body_read = True
+        return self.rfile.read(length)
 
     def _cookie(self, name: str) -> str:
         raw = self.headers.get("Cookie", "")
@@ -377,6 +654,10 @@ class PlatformHandler(BaseHTTPRequestHandler):
             return ""
 
     def _session_token(self) -> str:
+        """Cookie del browser oppure Bearer (Studio e client nativi, senza CSRF)."""
+        authorization = self.headers.get("Authorization", "").strip()
+        if authorization.lower().startswith("bearer "):
+            return authorization[7:].strip()
         return self._cookie("rw_session")
 
     def _session_cookie(self, token: str, clear: bool = False) -> str:
@@ -431,6 +712,19 @@ class PlatformHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except BrokenPipeError:
                 pass
+
+    # --- thumbnail ---------------------------------------------------------
+
+    def _serve_thumbnail(self, path: str) -> None:
+        name = posixpath.basename(path)
+        if not re.fullmatch(r"\d+\.png", name):
+            raise ApiError(404, "Thumbnail non trovata.")
+        candidate = config.thumbs_dir() / name
+        try:
+            body = candidate.read_bytes()
+        except OSError:
+            raise ApiError(404, "Thumbnail non trovata.")
+        self._send_bytes(200, "image/png", body, {"Cache-Control": "no-store"})
 
     # --- file statici ------------------------------------------------------
 

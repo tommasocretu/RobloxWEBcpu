@@ -94,6 +94,10 @@
     return new Intl.NumberFormat("it-IT").format(Number(value || 0));
   };
 
+  RW.visibilityLabel = function (value) {
+    return { public: "Pubblica", unlisted: "Non elencata", private: "Privata" }[value] || value;
+  };
+
   RW.timeAgo = function (iso) {
     if (!iso) return "";
     const date = new Date(iso);
@@ -120,20 +124,28 @@
     return `background: linear-gradient(135deg, ${colors[0]}, ${colors[1]});`;
   };
 
+  RW.liveBadgeHTML = function (place) {
+    const live = Number(place && place.live_players ? place.live_players : 0);
+    return `<span class="live" data-live-for="${RW.escape(place && place.id ? place.id : "")}"` +
+      `${live > 0 ? "" : " hidden"}>${RW.formatNumber(live)}</span>`;
+  };
+
   RW.thumbHTML = function (place, extraClass) {
+    const cls = extraClass ? ` ${extraClass}` : "";
     if (place && place.thumbnail_url) {
-      return `<img src="${RW.escape(place.thumbnail_url)}" alt="${RW.escape(place.title)}">`;
+      return `<div class="card-thumb${cls}">` +
+        `<img src="${RW.escape(place.thumbnail_url)}" alt="${RW.escape(place.title)}">` +
+        `${RW.liveBadgeHTML(place)}</div>`;
     }
     const initial = RW.escape((place && place.title ? place.title : "?").slice(0, 1).toUpperCase());
-    const cls = extraClass ? ` ${extraClass}` : "";
     return `<div class="card-thumb${cls}" style="${RW.thumbStyle(place)}">${initial}` +
-      `<span class="live">${RW.formatNumber(place && place.live_players)}</span></div>`;
+      `${RW.liveBadgeHTML(place)}</div>`;
   };
 
   RW.card = function (place) {
     const live = Number(place.live_players || 0);
     return `
-      <article class="card">
+      <article class="card" data-place-card="${RW.escape(place.id)}">
         <a href="/place.html?id=${encodeURIComponent(place.id)}">
           ${RW.thumbHTML(place)}
           <div class="card-body">
@@ -141,11 +153,53 @@
             <div class="card-meta">
               di ${RW.escape(place.author)}
               <span class="dot">·</span>${RW.formatNumber(place.visits)} visite
-              ${live > 0 ? `<span class="dot">·</span>${live} online` : ""}
+              ${live > 0 ? `<span data-live-text="1"><span class="dot">·</span>${live} online</span>` : ""}
             </div>
           </div>
         </a>
       </article>`;
+  };
+
+  // Aggiorna i badge live senza ridisegnare le card (niente flicker o scroll perso).
+  RW.applyLive = function (items) {
+    (items || []).forEach((place) => {
+      if (!place || place.id == null) return;
+      const el = document.querySelector(`[data-live-for="${place.id}"]`);
+      if (!el) return;
+      const live = Number(place.live_players || 0);
+      el.textContent = RW.formatNumber(live);
+      el.hidden = live <= 0;
+      const card = document.querySelector(`[data-place-card="${place.id}"] .card-meta`);
+      if (card) {
+        card.querySelectorAll("[data-live-text]").forEach((node) => node.remove());
+        if (live > 0) {
+          const span = document.createElement("span");
+          span.dataset.liveText = "1";
+          span.innerHTML = `<span class="dot">·</span>${live} online`;
+          card.appendChild(span);
+        }
+      }
+    });
+  };
+
+  // Polling leggero: si ferma quando la scheda è in background.
+  RW.pollLive = function (buildUrl, intervalMs) {
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const result = await RW.api(buildUrl());
+        if (result.ok && result.data) {
+          RW.applyLive(result.data.places || (result.data.place ? [result.data.place] : []));
+        }
+      } catch (_) {
+        /* il polling non deve rompere la pagina */
+      }
+    };
+    const timer = setInterval(tick, intervalMs || 10000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) tick();
+    });
+    return timer;
   };
 
   RW.setAlert = function (element, message, kind) {

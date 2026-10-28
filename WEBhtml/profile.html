@@ -17,18 +17,15 @@
       <h1 id="profile-name"></h1>
       <div class="muted" id="profile-username"></div>
     </div>
-    <div class="profile-actions">
-      <a class="btn" href="/studio.html">RobloxWeb Studio</a>
-      <button class="btn btn-ghost" type="button" id="profile-logout">Esci</button>
-    </div>
+    <div class="profile-actions" id="profile-actions"></div>
   </section>
 
   <div class="alert" id="profile-alert" hidden></div>
 
   <section>
     <div class="section-head">
-      <h2>Le mie esperienze</h2>
-      <span class="hint">Per ora le esperienze si creano con Studio e il seed del server.</span>
+      <h2 id="places-title">Le mie esperienze</h2>
+      <span class="hint" id="places-hint"></span>
     </div>
     <div class="card-grid" id="my-places"></div>
     <div class="empty" id="my-places-empty" hidden></div>
@@ -36,49 +33,209 @@
 </main>
 <footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
 
+<dialog class="edit-dialog" id="edit-dialog">
+  <form id="edit-form">
+    <h2>Modifica esperienza</h2>
+    <p class="small muted" id="edit-subtitle"></p>
+    <div class="alert" id="edit-alert" hidden></div>
+    <div class="field">
+      <label for="edit-title">Titolo</label>
+      <input id="edit-title" maxlength="60" required>
+    </div>
+    <div class="field">
+      <label for="edit-description">Descrizione</label>
+      <textarea id="edit-description" maxlength="500" rows="4"></textarea>
+    </div>
+    <div class="field">
+      <label for="edit-visibility">Visibilità</label>
+      <select id="edit-visibility">
+        <option value="public">Pubblica — visibile nel catalogo</option>
+        <option value="unlisted">Non elencata — solo con il link</option>
+        <option value="private">Privata — solo per te</option>
+      </select>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" type="button" id="edit-cancel">Annulla</button>
+      <button class="btn btn-primary" type="submit" id="edit-save">Salva</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 (async function () {
-  const user = await RW.requireUser();
-  if (!user) return;
-
-  document.title = user.name + " — RobloxWeb";
-  document.getElementById("profile-head").hidden = false;
-  document.getElementById("profile-avatar").textContent = user.name.slice(0, 1).toUpperCase();
-  document.getElementById("profile-name").textContent = user.name;
-  document.getElementById("profile-username").textContent =
-    "@" + user.username + (user.is_guest ? " · account ospite" : "");
-  document.getElementById("profile-logout").addEventListener("click", () => RW.logout());
-
   const alertBox = document.getElementById("profile-alert");
   const grid = document.getElementById("my-places");
   const empty = document.getElementById("my-places-empty");
+  const head = document.getElementById("profile-head");
+  const actions = document.getElementById("profile-actions");
+  const placesTitle = document.getElementById("places-title");
+  const placesHint = document.getElementById("places-hint");
+  const dialog = document.getElementById("edit-dialog");
+  const editAlert = document.getElementById("edit-alert");
+  const editForm = document.getElementById("edit-form");
 
-  if (user.is_guest) {
+  const me = await RW.me();
+  const requested = RW.qs("user");
+  const ownProfile = !requested || (me && String(me.id) === requested);
+
+  if (!me && !requested) {
+    await RW.requireUser();
+    return;
+  }
+
+  let profile;
+  let places = [];
+  let canEdit = false;
+
+  if (ownProfile) {
+    if (!me) {
+      await RW.requireUser();
+      return;
+    }
+    profile = { name: me.name, username: me.username, is_guest: me.is_guest, created_at: me.created_at };
+    canEdit = !me.is_guest;
+    const result = await RW.api("/api/me/places");
+    if (!result.ok) {
+      RW.setAlert(alertBox, result.error, "error");
+      return;
+    }
+    places = result.data.places || [];
+  } else {
+    const result = await RW.api("/api/users/" + encodeURIComponent(requested));
+    if (!result.ok) {
+      RW.setAlert(
+        alertBox,
+        result.status === 404 ? "Utente non trovato." : result.error,
+        "error"
+      );
+      return;
+    }
+    profile = result.data.user;
+    places = result.data.places || [];
+    placesTitle.textContent = "Esperienze di " + profile.name;
+  }
+
+  document.title = profile.name + " — RobloxWeb";
+  head.hidden = false;
+  document.getElementById("profile-avatar").textContent =
+    String(profile.name || "?").slice(0, 1).toUpperCase();
+  document.getElementById("profile-name").textContent = profile.name;
+  const username = document.getElementById("profile-username");
+  let sub = profile.username
+    ? "@" + profile.username + (profile.is_guest ? " · account ospite" : "")
+    : "";
+  if (profile.created_at) {
+    const since = "dal " + new Date(profile.created_at).toLocaleDateString("it-IT");
+    sub = sub ? sub + " · " + since : since;
+  }
+  username.textContent = sub;
+
+  if (canEdit) {
+    actions.innerHTML =
+      '<a class="btn" href="/studio.html">RobloxWeb Studio</a>' +
+      '<button class="btn btn-ghost" type="button" id="profile-logout">Esci</button>';
+    document.getElementById("profile-logout").addEventListener("click", () => RW.logout());
+    placesHint.textContent =
+      "Apri il livello in Studio per modificare il mondo e pubblicare una nuova versione.";
+  } else if (ownProfile && me && me.is_guest) {
+    actions.innerHTML =
+      '<a class="btn" href="/login.html">Registrati</a>' +
+      '<button class="btn btn-ghost" type="button" id="profile-logout">Esci</button>';
+    document.getElementById("profile-logout").addEventListener("click", () => RW.logout());
     RW.setAlert(
       alertBox,
       "Stai usando un account ospite: le esperienze non possono essere pubblicate. " +
       "Registrati per creare un account permanente.",
       "warn"
     );
-  }
-
-  const result = await RW.api("/api/me/places");
-  if (!result.ok) {
-    RW.setAlert(alertBox, result.error, "error");
-    return;
-  }
-  const items = result.data.places || [];
-  if (items.length === 0) {
-    grid.innerHTML = "";
-    empty.hidden = false;
-    empty.textContent = user.is_guest
-      ? "Gli ospiti non hanno esperienze. Registrati e usa RobloxWeb Studio per crearne una."
-      : "Non hai ancora pubblicato esperienze. Apri RobloxWeb Studio per crearne una.";
   } else {
-    grid.innerHTML = items.map(RW.card).join("");
+    actions.innerHTML = '<a class="btn" href="/">Sfoglia le esperienze</a>';
   }
 
+  function ownerCard(place) {
+    return `
+      <article class="card owner-card">
+        <a href="/place.html?id=${encodeURIComponent(place.id)}">
+          ${RW.thumbHTML(place)}
+          <div class="card-body">
+            <h3 class="card-title">${RW.escape(place.title)}</h3>
+            <div class="card-meta">
+              <span class="badge badge-${RW.escape(place.visibility)}">${RW.escape(RW.visibilityLabel(place.visibility))}</span>
+              <span class="dot">·</span>v${RW.formatNumber(place.current_version)}
+              <span class="dot">·</span>${RW.formatNumber(place.visits)} visite
+            </div>
+          </div>
+        </a>
+        ${canEdit ? `<div class="owner-actions">
+          <button class="btn btn-small" type="button" data-edit="${place.id}">Modifica</button>
+          <a class="btn btn-small btn-primary" href="/play.html?id=${encodeURIComponent(place.id)}">Gioca</a>
+        </div>` : ""}
+      </article>`;
+  }
+
+  function render() {
+    if (places.length === 0) {
+      grid.innerHTML = "";
+      empty.hidden = false;
+      empty.textContent = canEdit
+        ? "Non hai ancora pubblicato esperienze. Apri RobloxWeb Studio e premi Pubblica."
+        : "Questo autore non ha esperienze pubbliche.";
+      return;
+    }
+    empty.hidden = true;
+    grid.innerHTML = places.map(ownerCard).join("");
+    grid.querySelectorAll("[data-edit]").forEach((button) => {
+      button.addEventListener("click", () => openEdit(Number(button.dataset.edit)));
+    });
+  }
+
+  function openEdit(placeId) {
+    const place = places.find((item) => item.id === placeId);
+    if (!place) return;
+    document.getElementById("edit-subtitle").textContent =
+      "Esperienza #" + place.id + " · versione " + place.current_version;
+    document.getElementById("edit-title").value = place.title;
+    document.getElementById("edit-description").value = place.description || "";
+    document.getElementById("edit-visibility").value = place.visibility;
+    RW.setAlert(editAlert, "", "error");
+    dialog.dataset.placeId = String(placeId);
+    dialog.showModal();
+  }
+
+  document.getElementById("edit-cancel").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => delete dialog.dataset.placeId);
+
+  editForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const placeId = Number(dialog.dataset.placeId || 0);
+    if (!placeId) return;
+    const save = document.getElementById("edit-save");
+    save.disabled = true;
+    const result = await RW.api("/api/places/" + placeId, {
+      method: "PUT",
+      body: {
+        title: document.getElementById("edit-title").value.trim(),
+        description: document.getElementById("edit-description").value,
+        visibility: document.getElementById("edit-visibility").value,
+      },
+    });
+    save.disabled = false;
+    if (!result.ok) {
+      RW.setAlert(editAlert, result.error, "error");
+      return;
+    }
+    const updated = result.data.place;
+    places = places.map((item) => (item.id === placeId ? updated : item));
+    dialog.close();
+    render();
+    RW.setAlert(alertBox, 'Esperienza aggiornata: "' + updated.title + '".', "info");
+  });
+
+  render();
   await RW.initHeader();
+  if (places.length) {
+    RW.pollLive(() => (ownProfile ? "/api/me/places" : "/api/users/" + encodeURIComponent(requested)), 12000);
+  }
 })();
 </script>
 </body>

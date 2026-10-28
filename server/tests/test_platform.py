@@ -8,11 +8,13 @@ import http.client
 import json
 import select
 import socket
+import struct
 import sys
 import tempfile
 import threading
 import time
 import unittest
+import zlib
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -35,7 +37,15 @@ class HttpClient:
         self.base_url = base_url.rstrip("/")
         self.cookies: dict[str, str] = {}
 
-    def request(self, method: str, path: str, body=None, headers: dict | None = None):
+    def request(
+        self,
+        method: str,
+        path: str,
+        body=None,
+        headers: dict | None = None,
+        raw: bytes | None = None,
+        content_type: str | None = None,
+    ):
         parsed = urlsplit(self.base_url)
         conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=10)
         request_headers = dict(headers or {})
@@ -44,10 +54,12 @@ class HttpClient:
             request_headers["Cookie"] = "; ".join(
                 f"{key}={value}" for key, value in self.cookies.items()
             )
-        payload = None
+        payload = raw
         if body is not None:
             payload = json.dumps(body).encode("utf-8")
             request_headers.setdefault("Content-Type", "application/json")
+        if content_type:
+            request_headers["Content-Type"] = content_type
         conn.request(method, path, body=payload, headers=request_headers)
         response = conn.getresponse()
         raw = response.read()
@@ -76,6 +88,33 @@ class HttpClient:
 
     def post(self, path: str, body=None, headers: dict | None = None):
         return self.request("POST", path, body=body, headers=headers)
+
+    def put(self, path: str, body=None, headers: dict | None = None):
+        return self.request("PUT", path, body=body, headers=headers)
+
+    def delete(self, path: str, headers: dict | None = None):
+        return self.request("DELETE", path, headers=headers)
+
+
+def make_png(width: int = 64, height: int = 36) -> bytes:
+    """PNG RGB valido (senza dipendenze esterne) per i test delle thumbnail."""
+    raw = b"".join(b"\x00" + b"\x20\x60\x40" * width for _ in range(height))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        )
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(raw, 6))
+        + chunk(b"IEND", b"")
+    )
 
 
 def _ticket_payload(payload: dict) -> str:
@@ -286,6 +325,28 @@ class PlatformTest(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
+    def test_keep_alive_drains_body_on_error(self):
+        """Un body non letto non deve corrompere la richiesta successiva (keep-alive)."""
+        parsed = urlsplit(self.base_url)
+        conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=10)
+        payload = json.dumps({"padding": "x" * 200}).encode("utf-8")
+        conn.request(
+            "POST",
+            "/api/places",
+            body=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        first = conn.getresponse()
+        first.read()
+        self.assertEqual(first.status, 401)
+
+        conn.request("GET", "/api/health")
+        second = conn.getresponse()
+        body = second.read()
+        conn.close()
+        self.assertEqual(second.status, 200)
+        self.assertTrue(json.loads(body.decode("utf-8"))["ok"])
+
     def test_invalid_json_and_large_body(self):
         client = self.client()
         status, _, _ = client.post("/api/login", body=["non", "oggetto"])
@@ -358,6 +419,270 @@ class PlatformTest(unittest.TestCase):
         status, _, payload = client.get("/api/me/places")
         self.assertEqual(status, 200)
         self.assertEqual(payload["places"], [])
+
+    # --- pubblicazione (M1) ------------------------------------------------
+
+    def _register_user(self, username: str):
+        client = self.client()
+        status, _, payload = client.post(
+            "/api/register", {"username": username, "password": "segreta1"}
+        )
+        self.assertEqual(status, 201, payload)
+        return client, payload["user"]
+
+    def _level(self, title: str) -> dict:
+        data = json.loads(Path(config.DEFAULT_LEVEL_PATH).read_text(encoding="utf-8"))
+        data["meta"] = {"title": title, "author": "", "description": ""}
+        return data
+
+    def test_bearer_token_login(self):
+        client = self.client()
+        status, _, payload = client.post(
+            "/api/token", {"username": "demo", "password": "demo1234"}
+        )
+        self.assertEqual(status, 200)
+        token = payload["token"]
+        self.assertGreater(len(token), 20)
+        self.assertNotIn("rw_session", client.cookies)
+
+        status, _, payload = client.get(
+            "/api/me", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["user"]["username"], "demo")
+
+        status, _, _ = client.post(
+            "/api/token", {"username": "demo", "password": "sbagliata"}
+        )
+        self.assertEqual(status, 401)
+
+        status, _, _ = client.post(
+            "/api/logout", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(status, 200)
+        status, _, _ = client.get(
+            "/api/me", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(status, 401)
+
+    def test_publish_flow_ownership_and_versions(self):
+        author, author_user = self._register_user("autore_a")
+        level = self._level("Livello di A")
+
+        guest = self.client()
+        self.assertEqual(guest.post("/api/guest")[0], 200)
+        status, _, _ = guest.post("/api/places", {"title": "Guest", "level": level})
+        self.assertEqual(status, 403)
+
+        status, _, payload = author.post(
+            "/api/places",
+            {
+                "title": "Livello di A",
+                "description": "La prima esperienza di A.",
+                "visibility": "public",
+                "level": level,
+            },
+        )
+        self.assertEqual(status, 201, payload)
+        place = payload["place"]
+        place_id = place["id"]
+        self.assertEqual(place["current_version"], 1)
+        self.assertEqual(place["author"], "autore_a")
+        self.assertIsNone(place["thumbnail_url"])
+
+        _, _, catalog = self.client().get("/api/places?sort=recent")
+        self.assertIn(place_id, [item["id"] for item in catalog["places"]])
+        _, _, mine = author.get("/api/me/places")
+        self.assertIn(place_id, [item["id"] for item in mine["places"]])
+
+        reader, reader_user = self._register_user("autore_b")
+        status, _, detail = reader.get(f"/api/places/{place_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(detail["place"]["owner_id"], author_user["id"])
+
+        status, _, play = reader.post(f"/api/places/{place_id}/play")
+        self.assertEqual(status, 200)
+        self.assertEqual(play["level"]["meta"]["title"], "Livello di A")
+        self.assertEqual(play["player"]["name"], "autore_b")
+
+        # B non può modificare, pubblicare, caricare thumbnail o cancellare.
+        status, _, _ = reader.put(f"/api/places/{place_id}", {"title": "Rubata"})
+        self.assertEqual(status, 403)
+        status, _, _ = reader.post(
+            f"/api/places/{place_id}/versions", {"level": level}
+        )
+        self.assertEqual(status, 403)
+        status, _, _ = reader.request(
+            "POST",
+            f"/api/places/{place_id}/thumbnail",
+            raw=make_png(),
+            content_type="image/png",
+        )
+        self.assertEqual(status, 403)
+        for path in (
+            f"/api/places/{place_id}/data",
+            f"/api/places/{place_id}/versions",
+        ):
+            status, _, _ = reader.get(path)
+            self.assertEqual(status, 403, path)
+        status, _, _ = reader.delete(f"/api/places/{place_id}")
+        self.assertEqual(status, 403)
+
+        # A pubblica la versione 2 e aggiorna i metadati nella stessa chiamata.
+        level_two = self._level("Livello di A v2")
+        status, _, published = author.post(
+            f"/api/places/{place_id}/versions",
+            {
+                "level": level_two,
+                "title": "A v2",
+                "description": "Seconda versione.",
+                "visibility": "unlisted",
+            },
+        )
+        self.assertEqual(status, 200, published)
+        self.assertEqual(published["version"], 2)
+        self.assertEqual(published["place"]["title"], "A v2")
+        self.assertEqual(published["place"]["visibility"], "unlisted")
+
+        status, _, play = reader.post(f"/api/places/{place_id}/play")
+        self.assertEqual(status, 200)
+        self.assertEqual(play["level"]["meta"]["title"], "Livello di A v2")
+
+        # Unlisted: raggiungibile per id ma assente dal catalogo.
+        _, _, catalog = self.client().get("/api/places?sort=recent")
+        self.assertNotIn(place_id, [item["id"] for item in catalog["places"]])
+        status, _, _ = reader.get(f"/api/places/{place_id}")
+        self.assertEqual(status, 200)
+
+        # Private: solo l'autore.
+        status, _, _ = author.put(
+            f"/api/places/{place_id}", {"visibility": "private"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(reader.get(f"/api/places/{place_id}")[0], 403)
+        self.assertEqual(reader.post(f"/api/places/{place_id}/play")[0], 403)
+        self.assertEqual(author.get(f"/api/places/{place_id}")[0], 200)
+        self.assertEqual(author.post(f"/api/places/{place_id}/play")[0], 200)
+
+        # Storico e download della versione corrente.
+        status, _, versions = author.get(f"/api/places/{place_id}/versions")
+        self.assertEqual(status, 200)
+        self.assertEqual([item["version"] for item in versions["versions"]], [2, 1])
+        status, _, old = author.get(f"/api/places/{place_id}/versions/1")
+        self.assertEqual(status, 200)
+        self.assertEqual(old["level"]["meta"]["title"], "Livello di A")
+        status, _, current = author.get(f"/api/places/{place_id}/data")
+        self.assertEqual(status, 200)
+        self.assertEqual(current["version"], 2)
+        self.assertEqual(current["level"]["meta"]["title"], "Livello di A v2")
+
+    def test_thumbnail_upload_and_serving(self):
+        author, _ = self._register_user("autore_thumb")
+        level = self._level("Con thumbnail")
+        status, _, payload = author.post(
+            "/api/places", {"title": "Con thumbnail", "level": level}
+        )
+        self.assertEqual(status, 201)
+        place_id = payload["place"]["id"]
+        png = make_png(64, 36)
+
+        status, _, uploaded = author.request(
+            "POST",
+            f"/api/places/{place_id}/thumbnail",
+            raw=png,
+            content_type="image/png",
+        )
+        self.assertEqual(status, 200, uploaded)
+        url = uploaded["place"]["thumbnail_url"]
+        self.assertEqual(url, f"/thumbs/{place_id}.png?v=1")
+
+        status, content_type, body = self.client().get(f"/thumbs/{place_id}.png?v=1")
+        self.assertEqual(status, 200)
+        self.assertEqual(content_type, "image/png")
+        self.assertEqual(body, png)
+
+        status, _, detail = self.client().get(f"/api/places/{place_id}")
+        self.assertEqual(detail["place"]["thumbnail_url"], url)
+
+        # Una nuova versione eredita la thumbnail finché non ne arriva una nuova.
+        status, _, published = author.post(
+            f"/api/places/{place_id}/versions", {"level": level}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            published["place"]["thumbnail_url"], f"/thumbs/{place_id}.png?v=2"
+        )
+
+        status, _, _ = author.request(
+            "POST",
+            f"/api/places/{place_id}/thumbnail",
+            raw=b"non un png",
+            content_type="image/png",
+        )
+        self.assertEqual(status, 400)
+
+        status, _, _ = author.request(
+            "POST",
+            f"/api/places/{place_id}/thumbnail",
+            raw=b"\x00" * (config.MAX_THUMBNAIL_BYTES + 1),
+            content_type="image/png",
+        )
+        self.assertEqual(status, 413)
+
+        for path in ("/thumbs/../app.py", "/thumbs/1.txt", "/thumbs/999999.png"):
+            status, _, _ = self.client().get(path)
+            self.assertEqual(status, 404, path)
+
+    def test_publish_validation(self):
+        status, _, _ = self.client().post(
+            "/api/places", {"title": "Anonima", "level": self._level("X")}
+        )
+        self.assertEqual(status, 401)
+
+        author, _ = self._register_user("autore_val")
+        level = self._level("Valida")
+        status, _, _ = author.post("/api/places", {"title": "Manca il livello"})
+        self.assertEqual(status, 400)
+        broken = self._level("Rotta")
+        broken["format"] = "altro"
+        status, _, _ = author.post("/api/places", {"title": "Rotta", "level": broken})
+        self.assertEqual(status, 400)
+
+        big = dict(level)
+        big["padding"] = "x" * (config.MAX_PUBLISH_BODY + 64)
+        status, _, _ = author.post("/api/places", {"title": "Enorme", "level": big})
+        self.assertEqual(status, 413)
+
+        status, _, payload = author.post(
+            "/api/places", {"title": "T" * 200, "level": level}
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual(len(payload["place"]["title"]), places.MAX_TITLE)
+
+    def test_delete_own_place(self):
+        author, _ = self._register_user("autore_del")
+        level = self._level("Da cancellare")
+        status, _, payload = author.post(
+            "/api/places", {"title": "Da cancellare", "level": level}
+        )
+        self.assertEqual(status, 201)
+        place_id = payload["place"]["id"]
+        status, _, _ = author.delete(f"/api/places/{place_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(self.client().get(f"/api/places/{place_id}")[0], 404)
+        _, _, mine = author.get("/api/me/places")
+        self.assertNotIn(place_id, [item["id"] for item in mine["places"]])
+
+    def test_public_user_profile(self):
+        author = auth.get_user_by_username("RobloxWeb")
+        status, _, payload = self.client().get(f"/api/users/{int(author['id'])}")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["user"]["name"], "RobloxWeb")
+        self.assertIn(
+            "Welcome Obby", [item["title"] for item in payload["places"]]
+        )
+        status, _, _ = self.client().get("/api/users/999999")
+        self.assertEqual(status, 404)
 
     # --- ticket ------------------------------------------------------------
 

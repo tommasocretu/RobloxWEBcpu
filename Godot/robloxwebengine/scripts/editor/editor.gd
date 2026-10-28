@@ -2,10 +2,12 @@ class_name LevelEditor
 extends Node3D
 ## Editor di livelli v1: camera libera, piazzamento a click, selezione con pannello
 ## proprietà, snap a griglia, duplica/elimina, undo/redo, salva/apri file,
-## autosave in user:// e test-play nella scena principale.
+## autosave in user://, test-play e pubblicazione sul server (M1).
 
 const MAIN_SCENE_PATH := "res://scenes/main.tscn"
 const AUTOSAVE_PATH := "user://editor_autosave.rwl.json"
+const PUBLISH_SETTINGS_PATH := "user://publish_settings.json"
+const THUMBNAIL_SIZE := Vector2i(512, 288)
 const UNDO_LIMIT := 100
 const COALESCE_MS := 800
 
@@ -104,11 +106,36 @@ var _label_text: LineEdit
 var _label_pixel: SpinBox
 var _grid_button: Button
 var _palette_buttons: Dictionary = {}
+var _account_label: Label
+
+# Pubblicazione (M1)
+var _publish_client: PublishClient
+var _server_window: Window
+var _server_url_edit: LineEdit
+var _account_user_edit: LineEdit
+var _account_pass_edit: LineEdit
+var _account_button: Button
+var _account_status: Label
+var _account_tabs: TabContainer
+var _target_label: Label
+var _publish_title_edit: LineEdit
+var _publish_description: TextEdit
+var _visibility_option: OptionButton
+var _thumbnail_check: CheckBox
+var _publish_button: Button
+var _publish_status: Label
+var _places_list: ItemList
+var _places_status: Label
+var _places_open_button: Button
 
 
 func _ready() -> void:
 	_file_io = LevelFileIO.new()
 	add_child(_file_io)
+	_publish_client = PublishClient.new()
+	_publish_client.name = "PublishClient"
+	_publish_client.base_url = PublishClient.default_base_url()
+	add_child(_publish_client)
 	_build_ui()
 
 	_autosave_timer = Timer.new()
@@ -165,10 +192,33 @@ func _build_ui() -> void:
 	_grid_button.pressed.connect(_cycle_grid)
 	top_box.add_child(_grid_button)
 	_add_top_button(top_box, "Snap: ON", _toggle_snap).name = "SnapButton"
-	top_box.add_child(VSeparator.new())
-	_add_top_button(top_box, "Simula", _toggle_simulate)
-	_add_top_button(top_box, "Testa", _test_play)
-	_add_top_button(top_box, "Esci", _exit_editor)
+
+	# Seconda riga: pubblicazione, account e strumenti di test.
+	var publish_bar := PanelContainer.new()
+	publish_bar.name = "PublishBar"
+	publish_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	publish_bar.offset_top = 44
+	publish_bar.offset_bottom = 80
+	ui.add_child(publish_bar)
+	var publish_box := HBoxContainer.new()
+	publish_box.add_theme_constant_override("separation", 6)
+	publish_bar.add_child(publish_box)
+
+	var publish_button := _add_top_button(publish_box, "Pubblica", _open_server_window)
+	publish_button.name = "PublishButton"
+	_add_top_button(publish_box, "Dal server…", _open_my_places)
+	_account_label = Label.new()
+	_account_label.text = "Non connesso"
+	_account_label.add_theme_font_size_override("font_size", 13)
+	_account_label.add_theme_color_override("font_color", Color(0.70, 0.78, 0.90))
+	_account_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_account_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_account_label.clip_text = true
+	publish_box.add_child(_account_label)
+	publish_box.add_child(VSeparator.new())
+	_add_top_button(publish_box, "Simula", _toggle_simulate)
+	_add_top_button(publish_box, "Testa", _test_play)
+	_add_top_button(publish_box, "Esci", _exit_editor)
 
 	# Esploratore oggetti (sinistra).
 	var left := PanelContainer.new()
@@ -176,7 +226,7 @@ func _build_ui() -> void:
 	left.anchor_bottom = 1.0
 	left.offset_left = 8
 	left.offset_right = 218
-	left.offset_top = 44
+	left.offset_top = 84
 	left.offset_bottom = -36
 	ui.add_child(left)
 	var left_box := VBoxContainer.new()
@@ -198,7 +248,7 @@ func _build_ui() -> void:
 	right.anchor_bottom = 1.0
 	right.offset_left = -316
 	right.offset_right = -8
-	right.offset_top = 44
+	right.offset_top = 84
 	right.offset_bottom = -36
 	ui.add_child(right)
 	var scroll := ScrollContainer.new()
@@ -906,9 +956,474 @@ func _exit_editor() -> void:
 	get_tree().change_scene_to_file(MAIN_SCENE_PATH)
 
 
+# --- Pubblicazione (M1) -------------------------------------------------------------
+
+func _open_server_window() -> void:
+	_build_server_window()
+	_load_publish_settings()
+	var meta := _meta()
+	_publish_title_edit.text = LevelData.title(data)
+	_publish_description.text = str(meta.get("description", ""))
+	_update_target_label()
+	_update_account_ui()
+	_server_window.popup_centered()
+	if _publish_client.is_logged_in():
+		_refresh_places()
+
+
+func _open_my_places() -> void:
+	_open_server_window()
+	_account_tabs.current_tab = 1
+
+
+func _meta() -> Dictionary:
+	var value = data.get("meta", {})
+	if typeof(value) != TYPE_DICTIONARY:
+		value = {}
+		data["meta"] = value
+	return value
+
+
+func _update_target_label() -> void:
+	if _target_label == null:
+		return
+	var meta := _meta()
+	var place_id := int(meta.get("place_id", 0))
+	if place_id > 0:
+		_target_label.text = "Aggiornerà l'esperienza #%d (versione %d)." % [
+			place_id, int(meta.get("published_version", 0))
+		]
+	else:
+		_target_label.text = "Verrà creata una nuova esperienza."
+
+
+func _build_server_window() -> void:
+	if _server_window != null:
+		return
+	_server_window = Window.new()
+	_server_window.name = "PublishWindow"
+	_server_window.title = "RobloxWeb — Pubblica esperienza"
+	_server_window.size = Vector2i(620, 700)
+	_server_window.min_size = Vector2i(520, 560)
+	_server_window.visible = false
+	_server_window.close_requested.connect(func() -> void: _server_window.hide())
+	add_child(_server_window)
+
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 16)
+	_server_window.add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	margin.add_child(root)
+
+	var account_title := Label.new()
+	account_title.text = "Account"
+	account_title.add_theme_font_size_override("font_size", 16)
+	root.add_child(account_title)
+
+	var server_row := HBoxContainer.new()
+	var server_label := _make_field_label("Server")
+	server_row.add_child(server_label)
+	_server_url_edit = LineEdit.new()
+	_server_url_edit.text = _publish_client.base_url
+	_server_url_edit.placeholder_text = "http://127.0.0.1:9080"
+	_server_url_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	server_row.add_child(_server_url_edit)
+	root.add_child(server_row)
+
+	var login_row := HBoxContainer.new()
+	login_row.add_child(_make_field_label("Credenziali"))
+	_account_user_edit = LineEdit.new()
+	_account_user_edit.placeholder_text = "Username"
+	_account_user_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	login_row.add_child(_account_user_edit)
+	_account_pass_edit = LineEdit.new()
+	_account_pass_edit.placeholder_text = "Password"
+	_account_pass_edit.secret = true
+	_account_pass_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_account_pass_edit.text_submitted.connect(func(_text: String) -> void: _on_account_pressed())
+	login_row.add_child(_account_pass_edit)
+	_account_button = Button.new()
+	_account_button.text = "Accedi"
+	_account_button.custom_minimum_size.x = 90
+	_account_button.pressed.connect(_on_account_pressed)
+	login_row.add_child(_account_button)
+	root.add_child(login_row)
+
+	_account_status = Label.new()
+	_account_status.add_theme_font_size_override("font_size", 12)
+	_account_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(_account_status)
+
+	root.add_child(HSeparator.new())
+
+	_account_tabs = TabContainer.new()
+	_account_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_account_tabs)
+
+	# --- tab Pubblica ---
+	var publish_tab := VBoxContainer.new()
+	publish_tab.name = "Pubblica"
+	publish_tab.add_theme_constant_override("separation", 6)
+	_account_tabs.add_child(publish_tab)
+
+	_target_label = Label.new()
+	_target_label.add_theme_font_size_override("font_size", 13)
+	_target_label.add_theme_color_override("font_color", Color(0.70, 0.78, 0.90))
+	_target_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	publish_tab.add_child(_target_label)
+
+	publish_tab.add_child(_make_field_label("Titolo"))
+	_publish_title_edit = LineEdit.new()
+	_publish_title_edit.max_length = LevelData.MAX_TITLE_LENGTH
+	_publish_title_edit.placeholder_text = "Nome dell'esperienza"
+	publish_tab.add_child(_publish_title_edit)
+
+	publish_tab.add_child(_make_field_label("Descrizione"))
+	_publish_description = TextEdit.new()
+	_publish_description.custom_minimum_size = Vector2(0, 90)
+	_publish_description.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	publish_tab.add_child(_publish_description)
+
+	publish_tab.add_child(_make_field_label("Visibilità"))
+	_visibility_option = OptionButton.new()
+	_visibility_option.add_item("Pubblica — visibile nel catalogo", 0)
+	_visibility_option.add_item("Non elencata — solo con il link", 1)
+	_visibility_option.add_item("Privata — solo per te", 2)
+	publish_tab.add_child(_visibility_option)
+
+	_thumbnail_check = CheckBox.new()
+	_thumbnail_check.text = "Aggiorna la thumbnail dalla vista attuale"
+	_thumbnail_check.button_pressed = true
+	publish_tab.add_child(_thumbnail_check)
+
+	var publish_actions := HBoxContainer.new()
+	publish_actions.add_theme_constant_override("separation", 8)
+	publish_tab.add_child(publish_actions)
+	var publish_spacer := Control.new()
+	publish_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	publish_actions.add_child(publish_spacer)
+	var close_button := Button.new()
+	close_button.text = "Chiudi"
+	close_button.pressed.connect(func() -> void: _server_window.hide())
+	publish_actions.add_child(close_button)
+	_publish_button = Button.new()
+	_publish_button.text = "Pubblica"
+	_publish_button.pressed.connect(_on_publish_pressed)
+	publish_actions.add_child(_publish_button)
+
+	_publish_status = Label.new()
+	_publish_status.add_theme_font_size_override("font_size", 13)
+	_publish_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	publish_tab.add_child(_publish_status)
+
+	# --- tab Le mie place ---
+	var places_tab := VBoxContainer.new()
+	places_tab.name = "Le mie place"
+	places_tab.add_theme_constant_override("separation", 6)
+	_account_tabs.add_child(places_tab)
+
+	var places_actions := HBoxContainer.new()
+	places_actions.add_theme_constant_override("separation", 8)
+	places_tab.add_child(places_actions)
+	var refresh_button := Button.new()
+	refresh_button.text = "Aggiorna"
+	refresh_button.pressed.connect(_refresh_places)
+	places_actions.add_child(refresh_button)
+	_places_open_button = Button.new()
+	_places_open_button.text = "Apri nell'editor"
+	_places_open_button.pressed.connect(_on_open_server_place)
+	places_actions.add_child(_places_open_button)
+
+	_places_list = ItemList.new()
+	_places_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_places_list.item_activated.connect(func(_index: int) -> void: _on_open_server_place())
+	places_tab.add_child(_places_list)
+
+	_places_status = Label.new()
+	_places_status.add_theme_font_size_override("font_size", 12)
+	_places_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	places_tab.add_child(_places_status)
+
+
+func _make_field_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.custom_minimum_size.x = 96
+	label.add_theme_font_size_override("font_size", 13)
+	label.add_theme_color_override("font_color", Color(0.70, 0.75, 0.85))
+	return label
+
+
+func _set_status_label(label: Label, text: String, error := false) -> void:
+	if label == null:
+		return
+	label.text = text
+	label.add_theme_color_override(
+		"font_color",
+		Color(1.0, 0.55, 0.6) if error else Color(0.75, 0.88, 0.78)
+	)
+
+
+func _on_account_pressed() -> void:
+	if _publish_client.is_logged_in():
+		_publish_client.clear_session()
+		_publish_client.base_url = _server_url_edit.text
+		_places_list.clear()
+		_set_status_label(_account_status, "Disconnesso.", false)
+		_update_account_ui()
+		return
+	_account_button.disabled = true
+	_set_status_label(_account_status, "Accesso in corso…", false)
+	await _ensure_login()
+	_account_button.disabled = false
+	_update_account_ui()
+
+
+func _ensure_login() -> bool:
+	if _publish_client.is_logged_in():
+		return true
+	var username := _account_user_edit.text.strip_edges()
+	var password := _account_pass_edit.text
+	if username == "" or password == "":
+		_set_status_label(_account_status, "Inserisci username e password.", true)
+		_account_tabs.current_tab = 0
+		return false
+	_publish_client.base_url = _server_url_edit.text
+	if not _publish_client.login(username, password):
+		_set_status_label(_account_status, "Richiesta già in corso.", true)
+		return false
+	var result = await _publish_client.login_finished
+	_update_account_ui()
+	if not bool(result[0]):
+		_set_status_label(_account_status, str(result[1]), true)
+		return false
+	_set_status_label(_account_status, str(result[1]), false)
+	_save_publish_settings()
+	return true
+
+
+func _update_account_ui() -> void:
+	if _account_button == null:
+		return
+	var logged := _publish_client.is_logged_in()
+	_account_button.text = "Esci" if logged else "Accedi"
+	_account_user_edit.editable = not logged
+	_account_pass_edit.editable = not logged
+	_server_url_edit.editable = not logged
+	_publish_button.disabled = not logged
+	_places_open_button.disabled = not logged
+	_account_label.text = (
+		("Account: %s" % _publish_client.display_name())
+		if logged
+		else "Non connesso: premi Pubblica per accedere"
+	)
+	if logged:
+		_account_status.text = "Connesso come %s." % _publish_client.display_name()
+		_account_status.add_theme_color_override("font_color", Color(0.75, 0.88, 0.78))
+	_update_target_label()
+
+
+func _visibility_value() -> String:
+	match _visibility_option.selected:
+		1:
+			return "unlisted"
+		2:
+			return "private"
+	return "public"
+
+
+func _select_visibility(value: String) -> void:
+	_visibility_option.select({"public": 0, "unlisted": 1, "private": 2}.get(value, 0))
+
+
+func _on_publish_pressed() -> void:
+	var title := _publish_title_edit.text.strip_edges()
+	if title == "":
+		_set_status_label(_publish_status, "Il titolo è obbligatorio.", true)
+		return
+	var description := _publish_description.text.strip_edges()
+	var visibility := _visibility_value()
+	_publish_button.disabled = true
+	_set_status_label(_publish_status, "Accesso…", false)
+	if not await _ensure_login():
+		_publish_button.disabled = false
+		return
+
+	_set_status_label(_publish_status, "Pubblicazione in corso…", false)
+	var meta: Dictionary = data.get("meta", {}) if typeof(data.get("meta")) == TYPE_DICTIONARY else {}
+	var place_id := int(meta.get("place_id", 0))
+
+	var png := PackedByteArray()
+	if _thumbnail_check.button_pressed:
+		png = await _capture_thumbnail()
+
+	if not _publish_client.publish(place_id, title, description, visibility, data):
+		_set_status_label(_publish_status, "Richiesta già in corso.", true)
+		_publish_button.disabled = false
+		return
+	var result = await _publish_client.published
+	if not bool(result[0]):
+		_set_status_label(_publish_status, str(result[1]), true)
+		_publish_button.disabled = false
+		if not _publish_client.is_logged_in():
+			_update_account_ui()
+		return
+	var place: Dictionary = result[2]
+	var version := int(result[3])
+	var new_id := int(place.get("id", place_id))
+	var url := "%s/place.html?id=%d" % [_publish_client.base_url, new_id]
+
+	meta["place_id"] = new_id
+	meta["title"] = title
+	meta["description"] = description
+	meta["published_version"] = version
+	if _publish_client.display_name() != "":
+		meta["author"] = _publish_client.display_name()
+	data["meta"] = meta
+	_update_target_label()
+	_mark_dirty()
+	_write_autosave()
+
+	var note := "Pubblicata v%d: %s" % [version, url]
+	if not png.is_empty():
+		_set_status_label(_publish_status, note + "\nCaricamento thumbnail…", false)
+		if _publish_client.upload_thumbnail(new_id, png):
+			var thumb = await _publish_client.thumbnail_uploaded
+			if not bool(thumb[0]):
+				note += "\nThumbnail non caricata: " + str(thumb[1])
+	_set_status_label(_publish_status, note, false)
+	_status.text = "Pubblicata v%d (place #%d)." % [version, new_id]
+	_publish_button.disabled = false
+	_refresh_places()
+
+
+func _capture_thumbnail() -> PackedByteArray:
+	## Renderizza la vista attuale in un SubViewport 512x288 e la converte in PNG.
+	## Best-effort: in headless o se il renderer non è pronto ritorna un buffer vuoto.
+	var viewport := SubViewport.new()
+	viewport.size = THUMBNAIL_SIZE
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(viewport)
+	var snapshot_camera := Camera3D.new()
+	snapshot_camera.fov = camera.fov
+	snapshot_camera.near = camera.near
+	snapshot_camera.far = camera.far
+	viewport.add_child(snapshot_camera)
+	snapshot_camera.global_transform = camera.global_transform
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	viewport.queue_free()
+	if image == null or image.is_empty():
+		return PackedByteArray()
+	if image.get_width() != THUMBNAIL_SIZE.x or image.get_height() != THUMBNAIL_SIZE.y:
+		image.resize(THUMBNAIL_SIZE.x, THUMBNAIL_SIZE.y, Image.INTERPOLATE_BILINEAR)
+	return image.save_png_to_buffer()
+
+
+func _refresh_places() -> void:
+	if _places_list == null or not _publish_client.is_logged_in():
+		return
+	_set_status_label(_places_status, "Caricamento delle tue esperienze…", false)
+	if not _publish_client.fetch_places():
+		_set_status_label(_places_status, "Richiesta già in corso.", true)
+		return
+	var result = await _publish_client.places_loaded
+	if not bool(result[0]):
+		_set_status_label(_places_status, str(result[1]), true)
+		return
+	_places_list.clear()
+	var items: Array = result[2]
+	for place in items:
+		if typeof(place) != TYPE_DICTIONARY:
+			continue
+		var index := _places_list.add_item(
+			"[v%d] %s · %s" % [
+				int(place.get("current_version", 0)),
+				str(place.get("title", "?")),
+				str(place.get("visibility", "public")),
+			]
+		)
+		_places_list.set_item_metadata(index, int(place.get("id", 0)))
+	_set_status_label(
+		_places_status,
+		"Premi due volte una place (o Apri nell'editor) per caricarla." if not items.is_empty()
+		else "Non hai ancora pubblicato esperienze.",
+		false
+	)
+
+
+func _on_open_server_place() -> void:
+	var selected := _places_list.get_selected_items()
+	if selected.is_empty():
+		_set_status_label(_places_status, "Seleziona una place dall'elenco.", true)
+		return
+	var place_id := int(_places_list.get_item_metadata(selected[0]))
+	_places_open_button.disabled = true
+	_set_status_label(_places_status, "Download del livello…", false)
+	if not _publish_client.fetch_level(place_id):
+		_places_open_button.disabled = false
+		return
+	var result = await _publish_client.level_loaded
+	_places_open_button.disabled = false
+	if not bool(result[0]):
+		_set_status_label(_places_status, str(result[1]), true)
+		return
+	var place: Dictionary = result[2]
+	var level: Dictionary = result[3]
+	var errors := LevelData.validate(level)
+	if not errors.is_empty():
+		_set_status_label(_places_status, "Livello non valido: " + errors[0], true)
+		return
+	_push_undo()
+	data = level
+	var meta: Dictionary = data.get("meta", {}) if typeof(data.get("meta")) == TYPE_DICTIONARY else {}
+	meta["place_id"] = place_id
+	meta["published_version"] = int(place.get("current_version", 0))
+	if _publish_client.display_name() != "":
+		meta["author"] = _publish_client.display_name()
+	data["meta"] = meta
+	selected_id = ""
+	_rebuild()
+	_refresh_properties()
+	_mark_dirty()
+	_publish_title_edit.text = str(place.get("title", LevelData.title(data)))
+	_publish_description.text = str(place.get("description", ""))
+	_select_visibility(str(place.get("visibility", "public")))
+	_update_target_label()
+	_server_window.hide()
+	_status.text = "Aperta dal server: %s (v%d)." % [
+		str(place.get("title", "")), int(place.get("current_version", 0))
+	]
+
+
+func _load_publish_settings() -> void:
+	var stored := LevelIO.load_from_path(PUBLISH_SETTINGS_PATH)
+	if stored.is_empty():
+		return
+	var server_url := str(stored.get("server_url", "")).strip_edges()
+	if server_url != "":
+		_server_url_edit.text = server_url
+		_publish_client.base_url = server_url
+	var username := str(stored.get("username", "")).strip_edges()
+	if username != "" and _account_user_edit.text == "":
+		_account_user_edit.text = username
+
+
+func _save_publish_settings() -> void:
+	var payload := {
+		"server_url": _publish_client.base_url,
+		"username": _account_user_edit.text.strip_edges(),
+	}
+	LevelIO.save_to_path(PUBLISH_SETTINGS_PATH, payload)
+
+
 # --- Input e piazzamento ------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _server_window != null and _server_window.visible:
+		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_on_world_click(event.position)
 		get_viewport().set_input_as_handled()

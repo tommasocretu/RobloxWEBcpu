@@ -100,6 +100,11 @@
 
   await RW.initHeader();
   await load();
+  RW.pollLive(() => {
+    const params = new URLSearchParams({ sort });
+    if (query) params.set("q", query);
+    return "/api/places?" + params.toString();
+  }, 10000);
 })();
 </script>
 </body>

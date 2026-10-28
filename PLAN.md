@@ -4,7 +4,10 @@
 > Data: 28 ottobre 2026.
 > Prima fase da implementare nella nuova chat: **M0 — Piattaforma minima**.
 >
-> **Stato (28 ottobre 2026): M0 completato e verificato** (server HTTP+WS+SQLite, sito, client web, relay per place, test Python/Godot/browser). Prossima milestone: **M1**.
+> **Stato (28 ottobre 2026): M0 e M1 completati e verificati.** M0: server HTTP+WS+SQLite, sito,
+> client web, relay per place. M1: ownership, versioni, pubblicazione (API + pulsante Pubblica
+> nell'editor), thumbnail, profilo autore, contatori live aggiornati, test Python/Godot/browser.
+> Prossima milestone: **M2 — Studio desktop**.
 >
 > Questo piano sostituisce la direzione precedente ("level select + editor dentro la build web").
 > L'obiettivo è il flusso classico Roblox: **sito → login/ospite → catalogo esperienze → Play →
@@ -251,7 +254,7 @@ in questa fase: il seed crea l'esperienza.
 - [x] `profile.html`: profilo minimo, proprie esperienze (per ora vuoto/placeholder per gli ospiti).
 - [x] `studio.html`: pagina placeholder con download "disponibile in M2".
 - [x] Gestione 401 → redirect al login; 404/403 → messaggio nella pagina.
-- [ ] Polling leggero dei giocatori live (opzionale in M0, utile in M1).
+- [x] Polling leggero dei giocatori live (implementato in M1 su home, esperienza e profilo).
 
 **Client Godot**
 
@@ -301,14 +304,72 @@ in questa fase: il seed crea l'esperienza.
 
 ### 6.2 M1 — Autori e pubblicazione
 
-- Registrazione/login completi sul sito, profilo con le proprie esperienze.
-- API: creazione place, modifica metadati, pubblicazione versione, thumbnail.
-- Ownership e visibilità (`public`, `unlisted`, `private`).
-- Contatori visite e giocatori live sulle card.
-- Pulsante **Pubblica** nell'editor attuale (temporaneo, anche web) + dialog login.
-- Autore visibile su card e pagina esperienza.
-- Thumbnail: upload PNG; fallback gradiente.
-- Test end-to-end: A pubblica, B vede e gioca; B non può modificare la place di A.
+**Obiettivo:** un autore pubblica dall'editor e un altro utente vede e gioca l'esperienza;
+ownership e visibilità sono applicate dal server, non solo dalla UI.
+
+**Server e API**
+
+- [x] Registrazione/login completi; profilo con le proprie esperienze.
+- [x] `POST /api/places` (crea place + versione 1), `PUT /api/places/<id>` (metadati),
+      `DELETE /api/places/<id>` (owner), `POST /api/places/<id>/versions`,
+      `GET /api/places/<id>/versions[/<v>]`, `GET /api/places/<id>/data`,
+      `POST /api/places/<id>/thumbnail`, `GET /api/users/<id>`.
+- [x] Ownership e visibilità (`public`, `unlisted`, `private`): 403 per i non-owner,
+      private escluse dal catalogo e dal play degli altri, unlisted raggiungibili per link.
+- [x] Thumbnail PNG: validazione firma/IHDR e limite 1 MB, file `data/thumbs/<id>.png`,
+      servita da `/thumbs/<id>.png?v=<versione>`, ereditata dalle nuove versioni.
+- [x] Autenticazione Bearer per API non-browser (`POST /api/token`) oltre al cookie;
+      niente cookie per i client nativi (Studio).
+- [x] Limiti: livello 2 MB (body pubblicazione 2 MB + 64 KB), titolo 60, descrizione 500,
+      rate limit su pubblicazione.
+- [x] Ospiti: pubblicazione/modifica rifiutata lato server.
+
+**Sito**
+
+- [x] Autore cliccabile su card e pagina esperienza, pagina profilo pubblica
+      (`profile.html?user=<id>`) con le esperienze pubbliche.
+- [x] Profilo proprietario con badge visibilità, versione e dialog **Modifica**
+      (titolo, descrizione, visibilità) via `PUT`; gli ospiti non vedono i controlli.
+- [x] Contatori visite e giocatori live aggiornati con polling leggero
+      (home, pagina esperienza, profilo) senza ridisegnare le card.
+- [x] Thumbnail nella card e nella pagina esperienza, fallback gradiente.
+- [x] `studio.html` aggiornata: pubblicazione dall'editor attuale e link
+      `/dev/index.html?editor=1` temporaneo.
+
+**Editor / Godot**
+
+- [x] `scripts/net/publish_client.gd`: login Bearer, elenco proprie place, download livello,
+      creazione place, nuova versione, upload thumbnail (una richiesta alla volta, segnali).
+- [x] Seconda riga nella barra dell'editor: **Pubblica** e **Dal server…**, stato account.
+- [x] Finestra con account (server, username, password), tab **Pubblica** (titolo,
+      descrizione, visibilità, thumbnail) e tab **Le mie place** (apri/aggiorna).
+- [x] `meta.place_id` e `meta.published_version` salvati nel livello e nell'autosave:
+      le pubblicazioni successive aggiornano la stessa place.
+- [x] Thumbnail 512×288 catturata con `SubViewport` dalla vista della camera (best-effort;
+      se il renderer non è pronto la pubblicazione procede senza immagine).
+- [x] Editor raggiungibile nel web solo con `?editor=1` (temporaneo, rimosso in M2).
+
+**Test**
+
+- [x] Python: bearer token, creazione, versioni, ownership (B non può modificare A),
+      visibilità, thumbnail (upload/serving/ereditarietà), validazione, cancellazione,
+      profilo pubblico.
+- [x] Godot headless: `tools/test_publish.gd` (login, crea, v2, download, dettaglio, delete).
+- [x] Browser: login demo → profilo → dialog Modifica → pagina esperienza con autore/versione →
+      ospite → Play → livello e avatar renderizzati; thumbnail visibile nel catalogo.
+- [x] Test esistenti (`test_gameplay`, `test_level_io`, `test_editor`) ancora verdi.
+
+**Criteri di accettazione M1**
+
+1. A (account) pubblica dall'editor una nuova esperienza con titolo, descrizione e visibilità.
+2. B vede l'esperienza con autore e thumbnail e la gioca dal browser.
+3. B non può modificare, ripubblicare, cancellare o caricare thumbnail sulla place di A (403).
+4. Una nuova versione è visibile subito nella pagina esperienza e nel play.
+5. Unlisted non compare nel catalogo ma si apre per link; private è solo per l'autore.
+6. Gli ospiti non possono pubblicare (server-side).
+
+**Fuori da M1:** Studio `.exe`/`.run` autonomo, start screen, place browser completo,
+script Lua, like, rollback, deploy online.
 
 ### 6.3 M2 — Studio desktop
 

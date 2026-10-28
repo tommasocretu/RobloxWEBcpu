@@ -231,6 +231,7 @@ button, input, textarea, select { font: inherit; }
   font-size: 11px;
   font-weight: 700;
 }
+.card-thumb .live[hidden] { display: none; }
 .card-thumb .live::before {
   content: "";
   display: inline-block;
@@ -253,6 +254,22 @@ button, input, textarea, select { font: inherit; }
 }
 .card-meta { color: var(--muted); font-size: 13px; }
 .card-meta .dot { margin: 0 5px; }
+.owner-card .card-body { padding-bottom: 6px; }
+.owner-actions { display: flex; gap: 8px; padding: 6px 14px 14px; }
+.btn-small { padding: 7px 12px; font-size: 13px; border-radius: 8px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.badge-public { color: #bfffe0; background: rgba(43, 213, 118, 0.14); }
+.badge-unlisted { color: #ffe9b3; background: rgba(255, 207, 74, 0.14); }
+.badge-private { color: #ffd0d6; background: rgba(255, 92, 108, 0.14); }
 
 /* --- place page --------------------------------------------------------- */
 
@@ -368,6 +385,37 @@ button, input, textarea, select { font: inherit; }
   border: 1px dashed var(--border);
   border-radius: 14px;
 }
+
+/* --- dialog modifica ---------------------------------------------------- */
+
+.edit-dialog {
+  width: min(520px, calc(100% - 32px));
+  padding: 24px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.edit-dialog::backdrop {
+  background: rgba(3, 6, 10, 0.72);
+  backdrop-filter: blur(3px);
+}
+.edit-dialog h2 { margin: 0 0 6px; font-size: 22px; }
+.edit-dialog textarea,
+.edit-dialog select {
+  width: 100%;
+  padding: 11px 13px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+}
+.edit-dialog textarea:focus,
+.edit-dialog select:focus { border-color: var(--blue); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
 /* --- play --------------------------------------------------------------- */
 

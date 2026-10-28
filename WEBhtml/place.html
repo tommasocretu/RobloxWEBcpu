@@ -57,10 +57,12 @@
   document.getElementById("place-media").innerHTML = RW.thumbHTML(place);
   document.getElementById("place-title").textContent = place.title;
   document.getElementById("place-author").innerHTML =
-    'di <strong>' + RW.escape(place.author) + '</strong>';
+    'di <a href="/profile.html?user=' + encodeURIComponent(place.owner_id) + '">' +
+    '<strong>' + RW.escape(place.author) + '</strong></a>';
   document.getElementById("place-stats").innerHTML =
-    '<div><strong>' + RW.formatNumber(place.visits) + '</strong>visite</div>' +
-    '<div><strong>' + RW.formatNumber(place.live_players) + '</strong>online ora</div>' +
+    '<div><strong id="stat-visits">' + RW.formatNumber(place.visits) + '</strong>visite</div>' +
+    '<div><strong id="stat-live">' + RW.formatNumber(place.live_players) + '</strong>online ora</div>' +
+    '<div><strong>v' + RW.formatNumber(place.current_version) + '</strong>versione</div>' +
     '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>aggiornata</div>';
   document.getElementById("play-button").href = "/play.html?id=" + encodeURIComponent(place.id);
   const description = document.getElementById("place-description");
@@ -72,6 +74,17 @@
   }
   content.hidden = false;
   await RW.initHeader();
+
+  setInterval(async () => {
+    if (document.hidden) return;
+    const fresh = await RW.api("/api/places/" + encodeURIComponent(place.id));
+    if (!fresh.ok) return;
+    const updated = fresh.data.place;
+    const visits = document.getElementById("stat-visits");
+    const live = document.getElementById("stat-live");
+    if (visits) visits.textContent = RW.formatNumber(updated.visits);
+    if (live) live.textContent = RW.formatNumber(updated.live_players);
+  }, 10000);
 })();
 </script>
 </body>
