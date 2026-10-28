@@ -28,7 +28,14 @@
   };
 
   RW.safeNext = function (value, fallback) {
-    if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    if (
+      !value ||
+      typeof value !== "string" ||
+      !value.startsWith("/") ||
+      value.startsWith("//") ||
+      value.includes("\\") ||
+      /[\u0000-\u001f]/.test(value)
+    ) {
       return fallback || "/";
     }
     return value;
@@ -254,6 +261,7 @@
         nav.innerHTML =
           `<a class="who" href="/profile.html" title="${RW.escape(user.name)}">${RW.escape(user.name)}</a>` +
           (user.is_guest ? `<span class="guest-tag">Ospite</span>` : "") +
+          (user.is_admin ? `<a class="btn btn-ghost" href="/admin.html">Moderazione</a>` : "") +
           `<button class="btn btn-ghost" type="button" data-logout>Esci</button>`;
       }
       const guestButton = nav.querySelector("[data-guest]");

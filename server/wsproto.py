@@ -86,9 +86,10 @@ def client_handshake(conn, host, port, path="/"):
 class FrameReader:
     """Legge frame WebSocket da un socket, con buffer interno (timeout-safe)."""
 
-    def __init__(self, conn, initial=b""):
+    def __init__(self, conn, initial=b"", max_payload=1024 * 1024):
         self.conn = conn
         self.buf = initial
+        self.max_payload = max(1, int(max_payload))
 
     def read_exact(self, n):
         while len(self.buf) < n:
@@ -110,6 +111,8 @@ class FrameReader:
             length = struct.unpack(">H", self.read_exact(2))[0]
         elif length == 127:
             length = struct.unpack(">Q", self.read_exact(8))[0]
+        if length > self.max_payload:
+            raise ConnectionError("frame troppo grande")
         mask = self.read_exact(4) if masked else None
         payload = self.read_exact(length) if length else b""
         if mask:

@@ -64,7 +64,11 @@
 
   const detail = await RW.api("/api/places/" + encodeURIComponent(id));
   if (!detail.ok) {
-    fail(detail.status === 403 ? "Questa esperienza è privata." : detail.error);
+    fail(
+      detail.status === 403
+        ? "Questa esperienza non è disponibile (privata o nascosta dalla moderazione)."
+        : detail.error
+    );
     return;
   }
   const place = detail.data.place;

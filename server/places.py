@@ -8,6 +8,7 @@ from pathlib import Path
 import auth
 import config
 import db
+import logs
 
 SORTS = {"popular", "recent", "visits", "likes"}
 VISIBILITIES = ("public", "unlisted", "private")
@@ -138,6 +139,8 @@ def public_place(row, live: int = 0, liked: bool = False) -> dict:
         "author": str(row["author"]) if "author" in keys else "",
         "owner_id": int(row["owner_id"]),
         "visibility": str(row["visibility"]),
+        "hidden": bool(row["hidden"]) if "hidden" in keys else False,
+        "hidden_reason": str(row["hidden_reason"] or "") if "hidden_reason" in keys else "",
         "visits": int(row["visits"]),
         "likes": int(row["likes"]) if "likes" in keys else 0,
         "liked": bool(liked),
@@ -175,7 +178,7 @@ def list_places(
         "visits": "p.visits DESC, p.updated_at DESC",
         "recent": "p.updated_at DESC, p.id DESC",
     }[sort]
-    where = "p.visibility = 'public' AND p.current_version > 0"
+    where = "p.visibility = 'public' AND p.current_version > 0 AND p.hidden = 0"
     params: list = []
     query = q.strip()
     if query:
@@ -207,7 +210,8 @@ def list_by_author(
     owner_id: int, live_lookup=None, liked_ids: set[int] | None = None
 ) -> list[dict]:
     rows = _select_places(
-        "p.owner_id = ? AND p.visibility = 'public' AND p.current_version > 0",
+        "p.owner_id = ? AND p.visibility = 'public' AND p.current_version > 0"
+        " AND p.hidden = 0",
         [int(owner_id)],
         "p.likes DESC, p.visits DESC, p.updated_at DESC",
         100,
@@ -224,7 +228,7 @@ def list_liked(user_id: int, live_lookup=None) -> list[dict]:
     """Esperienze visibili che l'utente ha messo tra i preferiti."""
     rows = _select_places(
         "p.id IN (SELECT place_id FROM place_likes WHERE user_id = ?)"
-        " AND p.visibility != 'private' AND p.current_version > 0",
+        " AND p.visibility != 'private' AND p.current_version > 0 AND p.hidden = 0",
         [int(user_id)],
         "p.likes DESC, p.visits DESC, p.updated_at DESC",
         100,
@@ -240,7 +244,8 @@ def author_stats(owner_id: int) -> dict:
     row = db.connection().execute(
         "SELECT COUNT(*) AS places, COALESCE(SUM(visits), 0) AS visits,"
         " COALESCE(SUM(likes), 0) AS likes FROM places"
-        " WHERE owner_id = ? AND visibility = 'public' AND current_version > 0",
+        " WHERE owner_id = ? AND visibility = 'public' AND current_version > 0"
+        " AND hidden = 0",
         (int(owner_id),),
     ).fetchone()
     return {
@@ -357,6 +362,8 @@ def add_report(place_id: int, reporter_id: int, reason: str, details: str = "") 
 def can_view(place_row, user_id: int | None) -> bool:
     if place_row is None:
         return False
+    if "hidden" in place_row.keys() and bool(place_row["hidden"]):
+        return is_owner(place_row, user_id)
     visibility = str(place_row["visibility"])
     if visibility in ("public", "unlisted"):
         return True
@@ -582,9 +589,10 @@ def seed_demo() -> dict:
     if demo is None:
         demo = auth.create_account(config.DEMO_USERNAME, config.DEMO_PASSWORD)
         summary["created_users"].append(config.DEMO_USERNAME)
-        print(
-            f"[seed] creato utente demo ({config.DEMO_USERNAME}/{config.DEMO_PASSWORD})"
-            " — cambiare la password prima di un uso reale"
+        logs.get("seed").warning(
+            "creato utente demo (%s/%s) — cambiare la password prima di un uso reale",
+            config.DEMO_USERNAME,
+            config.DEMO_PASSWORD,
         )
     author = auth.get_user_by_username(config.AUTHOR_USERNAME)
     if author is None:
@@ -600,7 +608,7 @@ def seed_demo() -> dict:
             conn.commit()
             author = auth.get_user_by_id(int(author["id"]))
         summary["created_users"].append(config.AUTHOR_USERNAME)
-        print(f"[seed] creato utente autore {config.AUTHOR_USERNAME}")
+        logs.get("seed").info("creato utente autore %s", config.AUTHOR_USERNAME)
 
     conn = db.connection()
     place = conn.execute(
@@ -623,7 +631,9 @@ def seed_demo() -> dict:
             publish_version(place_id, read_default_level_text())
     summary["place_id"] = place_id
     if summary["created_place"]:
-        print(f"[seed] creata place \"{config.seed_place_title()}\" (id {place_id})")
+        logs.get("seed").info(
+            'creata place "%s" (id %s)', config.seed_place_title(), place_id
+        )
 
     # Seconda esperienza dimostrativa M3 con script Lua (se il file esiste).
     demo_path = Path(config.SCRIPT_DEMO_LEVEL_PATH)
@@ -632,7 +642,7 @@ def seed_demo() -> dict:
         try:
             _validate_level_text(demo_text)
         except PlaceError as exc:
-            print(f"[seed] demo script ignorata: {exc}")
+            logs.get("seed").warning("demo script ignorata: %s", exc)
         else:
             demo = conn.execute(
                 "SELECT * FROM places WHERE owner_id = ? AND title = ?",
@@ -653,5 +663,7 @@ def seed_demo() -> dict:
                     publish_version(demo_id, demo_text)
             summary["script_demo_place_id"] = demo_id
             if summary.get("created_script_demo"):
-                print(f"[seed] creata place \"{config.script_demo_title()}\" (id {demo_id})")
+                logs.get("seed").info(
+                    'creata place "%s" (id %s)', config.script_demo_title(), demo_id
+                )
     return summary

@@ -79,7 +79,7 @@
     const message = result.status === 404
       ? "Esperienza non trovata."
       : result.status === 403
-        ? "Questa esperienza è privata."
+        ? "Questa esperienza non è disponibile (privata o nascosta dalla moderazione)."
         : result.error;
     RW.setAlert(alertBox, message, "error");
     return;
@@ -89,6 +89,7 @@
   const me = await RW.me();
   let liked = Boolean(place.liked);
   let likes = Number(place.likes || 0);
+  const playButton = document.getElementById("play-button");
 
   document.title = place.title + " — RobloxWeb";
   document.getElementById("place-media").innerHTML = RW.thumbHTML(place);
@@ -103,6 +104,24 @@
     '<div><strong>v' + RW.formatNumber(place.current_version) + '</strong>versione</div>' +
     '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>aggiornata</div>';
   document.getElementById("play-button").href = "/play.html?id=" + encodeURIComponent(place.id);
+  if (place.hidden) {
+    const isAdmin = Boolean(me && me.is_admin);
+    RW.setAlert(
+      alertBox,
+      "Questa esperienza è nascosta dalla moderazione." +
+        (place.hidden_reason ? " Motivo: " + place.hidden_reason : "") +
+        (isAdmin ? " Puoi ancora aprirla come amministratore." : ""),
+      "warn"
+    );
+    if (!isAdmin) {
+      playButton.removeAttribute("href");
+      playButton.classList.add("disabled");
+      playButton.setAttribute("aria-disabled", "true");
+      playButton.textContent = "Non disponibile";
+    }
+    likeButton.hidden = true;
+    reportButton.hidden = true;
+  }
   const description = document.getElementById("place-description");
   if (place.description) {
     description.textContent = place.description;

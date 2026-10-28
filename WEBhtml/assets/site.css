@@ -511,6 +511,46 @@ button, input, textarea, select { font: inherit; }
 .studio-box h2 { margin: 0 0 10px; font-size: 18px; }
 .studio-box ul { margin: 0 0 18px; padding-left: 20px; color: var(--muted); line-height: 1.7; }
 
+/* --- moderazione -------------------------------------------------------- */
+
+.badge-hidden { color: #ffd0d6; background: rgba(255, 92, 108, 0.16); }
+.btn.disabled,
+.btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
+
+.admin-columns {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 20px;
+  align-items: start;
+}
+.admin-box {
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.admin-box .section-head { margin-bottom: 14px; }
+.admin-box h2 { margin: 0; font-size: 18px; }
+.admin-list { display: grid; gap: 10px; }
+.admin-item {
+  padding: 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.admin-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+.admin-item-head a { color: var(--text); text-decoration: none; }
+.admin-item-head a:hover { text-decoration: underline; }
+.admin-meta { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.admin-reason { margin-top: 8px; color: #ffe9b3; font-size: 13px; }
+.admin-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+
 /* --- footer ------------------------------------------------------------- */
 
 .site-footer {
@@ -532,6 +572,7 @@ button, input, textarea, select { font: inherit; }
   .studio-hero { grid-template-columns: 1fr; padding: 28px; }
   .profile-head { flex-wrap: wrap; }
   .profile-actions { margin-left: 0; }
+  .admin-columns { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {

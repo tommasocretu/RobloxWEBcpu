@@ -1,0 +1,22 @@
+[Unit]
+Description=RobloxWeb (HTTP + API + relay WebSocket)
+After=network.target
+
+[Service]
+Type=simple
+User=robloxweb
+Group=robloxweb
+WorkingDirectory=/opt/robloxweb
+EnvironmentFile=/etc/robloxweb.env
+ExecStart=/usr/bin/python3 server/run.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/robloxweb
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

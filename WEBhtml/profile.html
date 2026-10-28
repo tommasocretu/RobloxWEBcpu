@@ -201,7 +201,9 @@
           <div class="card-body">
             <h3 class="card-title">${RW.escape(place.title)}</h3>
             <div class="card-meta">
-              <span class="badge badge-${RW.escape(place.visibility)}">${RW.escape(RW.visibilityLabel(place.visibility))}</span>
+              ${place.hidden
+                ? '<span class="badge badge-hidden">Nascosta</span>'
+                : `<span class="badge badge-${RW.escape(place.visibility)}">${RW.escape(RW.visibilityLabel(place.visibility))}</span>`}
               <span class="dot">·</span>v${RW.formatNumber(place.current_version)}
               <span class="dot">·</span>${RW.formatNumber(place.visits)} visite
               <span class="dot">·</span>${RW.formatNumber(place.likes)} like
@@ -211,7 +213,7 @@
         ${canEdit ? `<div class="owner-actions">
           <button class="btn btn-small" type="button" data-edit="${place.id}">Modifica</button>
           <button class="btn btn-small" type="button" data-versions="${place.id}">Versioni</button>
-          <a class="btn btn-small btn-primary" href="/play.html?id=${encodeURIComponent(place.id)}">Gioca</a>
+          ${place.hidden ? "" : `<a class="btn btn-small btn-primary" href="/play.html?id=${encodeURIComponent(place.id)}">Gioca</a>`}
         </div>` : ""}
       </article>`;
   }

@@ -96,7 +96,11 @@ func _run() -> void:
 
 
 func _api_post(path: String, body: Dictionary, cookie := "") -> Array:
-	var headers := PackedStringArray(["Content-Type: application/json", "Accept: application/json"])
+	var headers := PackedStringArray([
+		"Content-Type: application/json",
+		"Accept: application/json",
+		"Origin: " + API_URL,
+	])
 	if cookie != "":
 		headers.append("Cookie: " + cookie)
 	var err := _http.request(API_URL + path, headers, HTTPClient.METHOD_POST, JSON.stringify(body))

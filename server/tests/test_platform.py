@@ -27,6 +27,7 @@ import app  # noqa: E402
 import auth  # noqa: E402
 import config  # noqa: E402
 import db  # noqa: E402
+import logs  # noqa: E402
 import places  # noqa: E402
 from relay import RelayServer  # noqa: E402
 from wsproto import FrameReader, OP_CLOSE, OP_PING, OP_PONG, OP_TEXT, client_handshake, send_frame, send_text  # noqa: E402
@@ -36,6 +37,7 @@ class HttpClient:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
         self.cookies: dict[str, str] = {}
+        self.last_headers: dict[str, str] = {}
 
     def request(
         self,
@@ -50,6 +52,8 @@ class HttpClient:
         conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=10)
         request_headers = dict(headers or {})
         request_headers["Connection"] = "close"
+        if method not in ("GET", "HEAD"):
+            request_headers.setdefault("Origin", self.base_url)
         if self.cookies:
             request_headers["Cookie"] = "; ".join(
                 f"{key}={value}" for key, value in self.cookies.items()
@@ -63,6 +67,7 @@ class HttpClient:
         conn.request(method, path, body=payload, headers=request_headers)
         response = conn.getresponse()
         raw = response.read()
+        self.last_headers = {key.lower(): value for key, value in response.getheaders()}
         set_cookie = response.getheader("Set-Cookie")
         if set_cookie:
             jar = SimpleCookie()
@@ -183,8 +188,17 @@ class PlatformTest(unittest.TestCase):
         (web / "assets").mkdir()
         (web / "assets" / "site.css").write_text("body{}", encoding="utf-8")
 
-        config.configure(data_dir=base / "data", web_root=web, http_port=0, ws_port=0)
+        config.configure(
+            data_dir=base / "data",
+            web_root=web,
+            http_port=0,
+            ws_port=0,
+            # La suite M0–M4 non testa i rate limit: alza la soglia per non
+            # interferire con decine di richieste dallo stesso IP.
+            rate_limits={"default": (10000, 60.0)},
+        )
         config.ensure_data_dir()
+        logs.setup(quiet=True)
         db.configure(config.db_path())
         db.init()
         places.seed_demo()
@@ -209,6 +223,7 @@ class PlatformTest(unittest.TestCase):
         cls.httpd.server_close()
         cls.relay.stop()
         db.close()
+        logs.reset()
         cls.tmp.cleanup()
 
     def client(self) -> HttpClient:
@@ -727,12 +742,25 @@ class PlatformTest(unittest.TestCase):
 
     def test_schema_v2_likes_and_reports(self):
         version = db.connection().execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(int(version), 2)
+        self.assertEqual(int(version), 3)
         columns = {
             row["name"]
             for row in db.connection().execute("PRAGMA table_info(places)").fetchall()
         }
         self.assertIn("likes", columns)
+        self.assertIn("hidden", columns)
+        self.assertIn("hidden_reason", columns)
+        user_columns = {
+            row["name"]
+            for row in db.connection().execute("PRAGMA table_info(users)").fetchall()
+        }
+        self.assertIn("is_admin", user_columns)
+        report_columns = {
+            row["name"]
+            for row in db.connection().execute("PRAGMA table_info(reports)").fetchall()
+        }
+        self.assertIn("status", report_columns)
+        self.assertIn("resolved_at", report_columns)
         tables = {
             row["name"]
             for row in db.connection()

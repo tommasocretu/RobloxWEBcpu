@@ -5,16 +5,18 @@
 - Il progetto Godot vive in `Godot/robloxwebengine/` (non nella root): tutti i path
   `res://` e `project.godot` sono relativi a quella cartella.
 - `WEBhtml/` è il sito servito dal server Python: `index.html` (catalogo), `place.html`,
-  `play.html`, `login.html`, `profile.html`, `studio.html`, `assets/` e `dev/` (export
-  Web del client, rigenerato e gitignored), `downloads/` (zip di Studio, generati e
-  gitignored).
+  `play.html`, `login.html`, `profile.html`, `admin.html` (moderazione), `studio.html`,
+  `assets/` e `dev/` (export Web del client, rigenerato e gitignored), `downloads/`
+  (zip di Studio, generati e gitignored).
 - `server/` è un unico processo Python (solo standard library): HTTP + API + relay
   WebSocket + SQLite. Vedi `server/README.md`.
 - `build/` contiene gli export desktop di Studio (`build/studio/linux/`,
   `build/studio/windows/`), generati da `build_studio.sh` e gitignored.
+- `deploy/` contiene l'esempio di deploy con TLS: `Caddyfile`, `robloxweb.service`
+  e istruzioni (`deploy/README.md`).
 - `PLAN.md` è il piano completo della piattaforma (M0–M5).
 
-## Stato attuale: M4 — Scoperta
+## Stato attuale: M5 — Robustezza
 
 Flusso funzionante in locale:
 
@@ -54,6 +56,14 @@ Flusso funzionante in locale:
     con **Ripristina** (rollback append-only).
 14. Le place non elencate restano raggiungibili per link, le private solo dall'owner;
     gli ospiti possono giocare, non like/segnalare/chat/pubblicare (blocco server-side).
+15. **M5:** configurazione via `ROBLOXWEB_*`, secret stabile, log con rotazione,
+    rate limit per scope con `Retry-After`, header di sicurezza e CSP, backup
+    DB+thumbnail con manifest e ripristino, backup pre-migrazione, pulizia
+    periodica di ospiti/sessioni (`ROBLOXWEB_MAINTENANCE_HOURS`). Gli admin
+    (`manage.py admin <user>` o `ROBLOXWEB_ADMIN_USERS`) hanno `/admin.html`:
+    segnalazioni aperte, **Ignora**, **Nascondi**, place nascoste con **Ripristina**.
+    Le place nascoste escono da catalogo/profili/like/play; l'autore le vede con il
+    badge **Nascosta**. Esempio TLS/`wss://` in `deploy/` (Caddy + systemd).
 
 Seed idempotente al primo avvio: utente `demo` / `demo1234` (cambiare la password!),
 autore `RobloxWeb`, place **Welcome Obby** da `levels/default.rwl.json` e place
@@ -65,12 +75,16 @@ autore `RobloxWeb`, place **Welcome Obby** da `levels/default.rwl.json` e place
 python3 server/run.py                 # tutto: sito, API, WS
 python3 server/manage.py seed         # seed idempotente
 python3 server/manage.py reset        # azzera DB (chiede conferma)
-python3 server/manage.py backup       # backup SQLite consistente
+python3 server/manage.py backup       # DB + thumbnail + manifest
+python3 server/manage.py restore <cartella>
+python3 server/manage.py check        # integrità + statistiche
+python3 server/manage.py admin <user> # ruolo amministratore
 python3 -m unittest discover -s server/tests -v
 ```
 
 - Porte: HTTP `9080`, WebSocket `9081` (configurabili con `--http-port`, `--ws-port`).
-- Dati locali in `server/data/` (gitignored): `app.db`, `secret.key`, `thumbs/`.
+- Dati locali in `server/data/` (gitignored): `app.db`, `secret.key`, `thumbs/`,
+  `logs/server.log` (rotazione) e `backups/` (DB + thumbnail + manifest).
 - Cookie di sessione `rw_session` HttpOnly/SameSite=Lax; l'HTTPRequest del client
   dentro l'iframe invia il cookie same-origin (verificato con il browser).
 - Autenticazione Bearer per client nativi: `POST /api/token` restituisce un token di
@@ -87,6 +101,12 @@ python3 -m unittest discover -s server/tests -v
   `GET /api/me/likes`, `POST /api/places/<id>/report`,
   `POST /api/places/<id>/versions/<v>/rollback` (crea una nuova versione corrente).
   `GET /api/users/<id>` restituisce `avatar_color` e `stats` (place/visite/like).
+- API M5: `GET /api/health` (`ok`, `db`, `version`, `uptime`, `live_players`),
+  `GET /api/admin/reports?status=open|resolved|all`,
+  `POST /api/admin/reports/<id>/resolve` (`dismiss`/`hide`),
+  `GET /api/admin/places`, `POST /api/admin/places/<id>/moderate`.
+  Le richieste con cookie richiedono `Origin`/`Referer` same-origin; il login ruota
+  la sessione; il rate limit è per IP+scope con `Retry-After`.
 - Visibilità: `public` nel catalogo, `unlisted` solo per link, `private` solo owner.
 - Thumbnail: PNG max 1 MB (1920×1080), salvata in `data/thumbs/<place_id>.png`,
   validata su firma+IHDR; una nuova versione eredita quella precedente.
@@ -116,6 +136,9 @@ python3 -m unittest discover -s server/tests -v
   pulsante like (account) e dialog **Segnala** (`POST /api/places/<id>/report`).
 - `index.html`: ricerca per titolo/autore, ordinamento Popolari/Più apprezzati/Recenti,
   badge live aggiornati senza ridisegnare la griglia.
+- `admin.html`: pagina di moderazione per gli admin (segnalazioni aperte con **Ignora**
+  e **Nascondi**, elenco place nascoste con **Ripristina**); la voce **Moderazione**
+  compare nel menu account solo con `is_admin`.
 - `studio.html`: download Windows/Linux da `/downloads/` e istruzioni per pubblicare.
   I binari sono prodotti da `./build_studio.sh`; il vecchio editor web `?editor=1` è
   stato rimosso in M2.
@@ -334,6 +357,16 @@ Renderer GL Compatibility (Windows D3D12), fisica Jolt Physics.
   creazione.
 - Place private: solo l'owner può vederle/giocarle; la home mostra solo le pubbliche,
   le non elencate (`unlisted`) solo per link.
+- Place nascoste (`places.hidden`): escluse da catalogo, profilo pubblico, like e play;
+  l'owner le vede nel profilo con badge **Nascosta**, l'admin può riaprirle da
+  `/admin.html` o con `POST /api/admin/places/<id>/moderate`.
+- Le richieste POST/PUT/DELETE con cookie di sessione devono avere `Origin`/`Referer`
+  same-origin: i `fetch` del sito lo fanno; i client con Bearer ne sono esenti. Non
+  rimuovere questo controllo senza sostituirlo con un token CSRF.
+- Rate limit e log sono in memoria/`data/logs`; con più processi o container servono
+  limiti al reverse proxy e un volume per i dati.
+- La CSP è applicata alle pagine del sito ma non a `/dev/` (export Godot); se si
+  aggiungono script/iframe esterni aggiornare `CONTENT_SECURITY_POLICY` in `app.py`.
 - Il livello non viene sincronizzato in rete: tutti i client caricano la stessa
   versione corrente dal server. La pubblicazione avviene dall'editor (M1), non dal
   client web di gioco.

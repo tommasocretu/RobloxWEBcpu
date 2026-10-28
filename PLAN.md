@@ -2,22 +2,26 @@
 
 > Documento di handoff per l'implementazione.
 > Data: 28 ottobre 2026.
-> Prossima fase da implementare: **M5 — Robustezza**.
+> Prossima fase: **decisione sul deploy** (il piano M0–M5 è completo).
 >
-> **Stato (28 ottobre 2026): M0, M1, M2, M3 e M4 completati e verificati.** M0: server HTTP+WS+SQLite,
-> sito, client web, relay per place. M1: ownership, versioni, pubblicazione (API + pulsante
-> Pubblica nell'editor), thumbnail, profilo autore, contatori live aggiornati. M2: RobloxWeb
-> Studio desktop (start screen, login/offline, place browser, publish, thumbnail), preset
-> Linux/Windows con feature `studio`, binari e zip in `build/studio/`, download sul sito,
-> editor rimosso dal web. M3: VM Lua sandboxata (lexer/parser/compiler/bytecode/VM), stdlib,
-> API Roblox-like (`workspace`, `Instance.new`, `Touched`, Humanoid, `task.*`), scheduler con
-> budget, formato livello v2 con `scripts[]`, pannelli Script/Output e simulazione in Studio,
-> place demo **Demo script** seedata. M4: ricerca per titolo/autore, ordinamento per like e
-> recenti, like con elenco personale, profili autore con avatar colorato e statistiche,
-> storico versioni con rollback append-only, visibilità public/unlisted/private e
-> segnalazione contenuti; restrizioni ospite complete (like, segnalazioni, chat, publish).
-> Test Python/Godot e prova nel browser verdi.
-> Prossima milestone: **M5 — Robustezza**.
+> **Stato (28 ottobre 2026): M0, M1, M2, M3, M4 e M5 completati e verificati.**
+> M0: server HTTP+WS+SQLite, sito, client web, relay per place. M1: ownership, versioni,
+> pubblicazione (API + pulsante Pubblica nell'editor), thumbnail, profilo autore, contatori
+> live aggiornati. M2: RobloxWeb Studio desktop (start screen, login/offline, place browser,
+> publish, thumbnail), preset Linux/Windows con feature `studio`, binari e zip in
+> `build/studio/`, download sul sito, editor rimosso dal web. M3: VM Lua sandboxata
+> (lexer/parser/compiler/bytecode/VM), stdlib, API Roblox-like (`workspace`, `Instance.new`,
+> `Touched`, Humanoid, `task.*`), scheduler con budget, formato livello v2 con `scripts[]`,
+> pannelli Script/Output e simulazione in Studio, place demo **Demo script** seedata.
+> M4: ricerca per titolo/autore, ordinamento per like e recenti, like con elenco personale,
+> profili autore con avatar colorato e statistiche, storico versioni con rollback
+> append-only, visibilità public/unlisted/private e segnalazione contenuti; restrizioni
+> ospite complete (like, segnalazioni, chat, publish). M5: configurazione via ambiente e
+> secret stabile, log con rotazione, rate limit per scope, header di sicurezza, backup e
+> ripristino di DB+thumbnail, backup pre-migrazione, moderazione con amministratori e
+> place nascoste, esempio Caddy TLS + systemd. Test Python/Godot e prova nel browser verdi.
+>
+> Il deploy pubblico resta una decisione separata: l'esempio pronto è in `deploy/`.
 >
 > Questo piano sostituisce la direzione precedente ("level select + editor dentro la build web").
 > L'obiettivo è il flusso classico Roblox: **sito → login/ospite → catalogo esperienze → Play →
@@ -504,12 +508,29 @@ deploy online.
 
 ### 6.6 M5 — Robustezza (pre-deploy)
 
-- Config via env, secret persistente, backup DB e thumbnail.
-- Log e rate limit più solidi.
-- Esempio Caddy per TLS e `wss://`.
-- Review sicurezza: CSRF, XSS, path traversal, size limit, session fixation.
-- Moderazione/segnalazioni di base.
-- Resta locale finché non si decide il deploy.
+- [x] Configurazione via ambiente (`ROBLOXWEB_*`), secret stabile in
+  `data/secret.key` oppure `ROBLOXWEB_SECRET`, data/log/backup dir separabili.
+- [x] Log applicativo con rotazione (`data/logs/server.log`, 2 MB × 3) al posto
+  dei `print`; access log HTTP, join/leave relay, eventi di sicurezza e azioni admin.
+- [x] Rate limit a finestre scorrevoli per IP e scope (`login`, `register`, `guest`,
+  `publish`, `like`, `report`, `rollback`, `play`, `admin`) con `Retry-After`;
+  `X-Forwarded-For` solo con `ROBLOXWEB_TRUST_PROXY=1`; limiti chat/stato e cap
+  connessioni nel relay.
+- [x] Backup completo di DB+thumbnail in `data/backups/app-<stamp>/` con manifest,
+  ritenzione configurabile, `restore` con `integrity_check` e backup automatico
+  pre-migrazione.
+- [x] Header di sicurezza (`X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, CSP sulle pagine del sito), rifiuto di
+  `Transfer-Encoding` non supportato, rotazione della sessione al login, CSRF
+  same-origin per le richieste con cookie, difesa timing sul login.
+- [x] Moderazione: ruolo `is_admin` (CLI/env), elenco segnalazioni, chiusura o
+  "nascondi", place nascoste fuori da catalogo/profili/like/play, pagina
+  `/admin.html` e badge **Nascosta** nel profilo dell'autore.
+- [x] Esempio Caddy per TLS e `wss://dominio/ws` + unit systemd in `deploy/`.
+- [x] Test Python dedicati (`server/tests/test_hardening.py`): header, CSRF,
+  rotazione sessione, rate limit, proxy fidato, moderazione, backup/ripristino,
+  migrazione con backup, log e secret da ambiente.
+- Resta locale finché non si decide il deploy; il piano M0–M5 è completo.
 
 ---
 
@@ -537,6 +558,10 @@ deploy online.
 | GET | `/api/places/<id>/versions` | owner | storico (M1/M4) |
 | POST | `/api/places/<id>/thumbnail` | owner | PNG (M1) |
 | POST | `/api/places/<id>/play` | sì/ospite | livello + ticket + ws_url |
+| GET | `/api/admin/reports?status=open\|resolved\|all` | admin | segnalazioni (M5) |
+| POST | `/api/admin/reports/<id>/resolve` | admin | dismiss oppure hide (M5) |
+| GET | `/api/admin/places` | admin | place nascoste (M5) |
+| POST | `/api/admin/places/<id>/moderate` | admin | hidden true/false (M5) |
 | GET | `/dev/...` | no | export Web |
 
 Risposta `play` (esempio):
@@ -566,6 +591,7 @@ users(
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL DEFAULT '',
   is_guest INTEGER NOT NULL DEFAULT 0,
+  is_admin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
@@ -586,7 +612,9 @@ places(
   updated_at TEXT NOT NULL,
   current_version INTEGER NOT NULL DEFAULT 0,
   visits INTEGER NOT NULL DEFAULT 0,
-  likes INTEGER NOT NULL DEFAULT 0
+  likes INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  hidden_reason TEXT NOT NULL DEFAULT ''
 );
 
 place_versions(
@@ -612,6 +640,9 @@ reports(
   reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   reason TEXT NOT NULL,
   details TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',
+  resolved_at TEXT,
+  resolved_by INTEGER REFERENCES users(id),
   created_at TEXT NOT NULL,
   UNIQUE(place_id, reporter_id)
 );
@@ -619,24 +650,36 @@ reports(
 
 - `PRAGMA journal_mode=WAL`.
 - Connessione per thread (`threading.local`) o lock; attenzione a `check_same_thread`.
-- Migrazioni con `PRAGMA user_version`.
+- Migrazioni con `PRAGMA user_version`: v3 aggiunge `users.is_admin`, `places.hidden`,
+  `places.hidden_reason` e lo stato delle segnalazioni; prima di migrare viene creato un
+  backup in `data/backups/`.
 - `data/thumbs/<place_id>.png` (o `<place_id>_<version>.png` per lo storico).
-- `data/secret.key` generato al primo avvio; HMAC dei ticket.
+- `data/secret.key` generato al primo avvio; HMAC dei ticket. In deploy si può usare
+  `ROBLOXWEB_SECRET`.
+- `data/logs/server.log` con rotazione; `data/backups/app-<stamp>/` con DB, thumbnail e
+  manifest.
 - `data/` in `.gitignore`.
 
 ### 7.3 Autenticazione e sicurezza
 
 - Password: `hashlib.scrypt(password, salt=os.urandom(16), n=2**14, r=8, p=1)`.
-- Verifica con `hmac.compare_digest`.
-- Sessione: token `secrets.token_urlsafe(32)`, in DB solo SHA-256.
+- Verifica con `hmac.compare_digest`; login inesistente esegue comunque uno scrypt
+  (difesa timing).
+- Sessione: token `secrets.token_urlsafe(32)`, in DB solo SHA-256; login/registrazione/
+  ospite ruotano la sessione cookie precedente (session fixation).
 - Cookie: `HttpOnly; SameSite=Lax; Path=/`; `Secure` se HTTPS.
-- CSRF: controllo `Origin`/`Referer` su metodi non-GET; Studio usa Bearer e non ha cookie.
-- Rate limit in memoria per IP su login/register/guest/publish.
-- Limiti body: JSON API 64 KB; livello 2 MB; script 64 KB; parti 2000; script 200.
+- CSRF: controllo `Origin`/`Referer` su metodi non-GET; le richieste con cookie devono
+  dichiarare un'origine same-origin; Studio usa Bearer e non ha cookie.
+- Rate limit in memoria per IP e scope con `Retry-After`; `X-Forwarded-For` solo dietro
+  proxy fidato. Il relay limita chat/stato e connessioni per IP.
+- Header: `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`,
+  `Permissions-Policy`, CSP sulle pagine del sito (escluso l'export in `/dev/`).
+- Limiti body: JSON API 64 KB; livello 2 MB; script 64 KB; parti 2000; script 200;
+  `Transfer-Encoding` non supportato rifiutato; connessioni keep-alive drenate.
 - Validazione server: `format`, `version`, limiti; validazione completa lato client.
 - Path traversal: normalizzare e verificare che il file sia dentro `WEBhtml/`.
 - Thumbnail: verificare magic PNG e dimensione.
-- Messaggi di errore generici su login fallito.
+- Messaggi di errore generici su login fallito; eventi di sicurezza nel log.
 
 ### 7.4 Ospiti
 
@@ -813,7 +856,13 @@ server → client:
 - Play: top bar sottile + iframe fullscreen; overlay di caricamento; errore con "Torna al sito".
 - Login: due tab (Accedi/Registrati) + "Continua come ospite".
 - Profilo: avatar colorato, nome/username, statistiche, "Le mie esperienze",
-  storico versioni con rollback, elenco dei like, link a Studio.
+  storico versioni con rollback, elenco dei like, link a Studio; badge **Nascosta**
+  per le place fermate dalla moderazione.
+- Admin: `/admin.html` con segnalazioni aperte, **Ignora**, **Nascondi**,
+  elenco delle place nascoste con **Ripristina**; voce **Moderazione** nel menu
+  solo per `is_admin`.
+- Place nascosta: banner con il motivo per l'autore, Play disabilitato (l'admin
+  può ancora aprirla); fuori da catalogo, profili pubblici, like e play.
 - Studio: download Windows/Linux + istruzioni.
 - Mobile: non prioritario in M0; layout responsive di base.
 
@@ -836,7 +885,10 @@ server → client:
   play/visite, pubblicazione (M1), visibilità, MIME `.wasm`, path traversal, body troppo grande,
   WS isolamento stanze, chat ospite bloccata, ticket scaduto/falsificato; ricerca e
   ordinamento, like (toggle, ospiti, elenco personale), rollback append-only, segnalazioni,
-  migrazione DB v2 e statistiche del profilo autore (M4).
+  migrazione DB v2 e statistiche del profilo autore (M4); hardening (M5): header di
+  sicurezza, CSRF con cookie, rotazione sessione, rate limit e `Retry-After`,
+  proxy fidato, moderazione/hide/unhide, backup/ripristino, backup pre-migrazione,
+  log e secret da ambiente (`server/tests/test_hardening.py`).
 
 ### Godot headless
 
@@ -860,7 +912,8 @@ server → client:
   - due tab stessa place;
   - due place diverse;
   - chat da account, chat bloccata da ospite;
-  - errori (place privata, server giù).
+  - errori (place privata, server giù);
+  - admin: segnalazione → Nascondi → fuori dal catalogo → Ripristina.
 
 ---
 
@@ -871,6 +924,18 @@ server → client:
 ```bash
 python3 server/run.py
 # poi aprire http://127.0.0.1:9080/
+```
+
+### Manutenzione e deploy
+
+```bash
+python3 server/manage.py check                   # integrità + statistiche
+python3 server/manage.py backup                  # DB + thumbnail + manifest
+python3 server/manage.py restore <cartella>      # ripristino (chiede conferma)
+python3 server/manage.py admin demo              # ruolo amministratore
+python3 server/manage.py cleanup-guests
+# deploy TLS di esempio:
+#   deploy/Caddyfile, deploy/robloxweb.service, deploy/README.md
 ```
 
 ### Export Web
@@ -943,7 +1008,7 @@ Smoke test del binario Linux: `./build/studio/linux/RobloxWebStudio.x86_64 --hea
 | Cookie non passano nell'iframe | Play non autenticato | test precoce in M0; fallback ticket/sessionStorage |
 | Export Windows non testabile qui | bug Windows | build Linux come test; test manuale su Windows |
 | Livello grande / JSON lento | play lento | limiti 2 MB, gzip opzionale, thumbnail piccole |
-| Contenuti pubblici | moderazione | M5, segnalazioni, visibilità private |
+| Contenuti pubblici | moderazione | segnalazioni e place nascoste (M5), visibilità private |
 | Path stale in AGENTS | comandi rotti | correggere in M0 |
 
 ---
@@ -963,9 +1028,10 @@ Smoke test del binario Linux: `./build/studio/linux/RobloxWebStudio.x86_64 --hea
 
 ---
 
-## 12. Checklist immediata per la nuova chat (M0)
+## 12. Checklist storica M0 (completata)
 
-Ordine consigliato:
+Questa sezione documenta l'ordine con cui è stata costruita la prima milestone;
+M0–M5 sono ora completi. Per il deploy vedere `deploy/README.md` e la sezione M5.
 
 1. Leggere `AGENTS.md`, `PLAN.md`, `server/run.py`, `relay.py`, `scripts/main.gd`,
    `level_data.gd`, `level_io.gd`, `export_presets.cfg`.

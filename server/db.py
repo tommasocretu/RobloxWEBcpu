@@ -84,7 +84,20 @@ CREATE INDEX IF NOT EXISTS idx_reports_place ON reports(place_id);
 CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);
 """
 
-MIGRATIONS = [(1, SCHEMA_V1), (2, SCHEMA_V2)]
+SCHEMA_V3 = """
+ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE places ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE places ADD COLUMN hidden_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE reports ADD COLUMN resolved_at TEXT;
+ALTER TABLE reports ADD COLUMN resolved_by INTEGER REFERENCES users(id);
+
+CREATE INDEX IF NOT EXISTS idx_places_hidden ON places(hidden);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+"""
+
+MIGRATIONS = [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3)]
+LATEST_VERSION = MIGRATIONS[-1][0]
 
 
 def utc_now() -> str:
@@ -139,23 +152,54 @@ def close() -> None:
 
 
 def init() -> None:
-    """Crea lo schema e applica le migrazioni mancanti."""
+    """Crea lo schema e applica le migrazioni mancanti.
+
+    Prima di aggiornare un database esistente salva un backup consistente in
+    `data/backups/` (se il backup fallisce, la migrazione prosegue e lo segnala).
+    """
     conn = connection()
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    if 0 < version < LATEST_VERSION:
+        _pre_migration_backup(version)
     for number, sql in MIGRATIONS:
         if version < number:
-            conn.executescript(sql)
-            conn.execute(f"PRAGMA user_version={number}")
-            conn.commit()
+            # Migrazione atomica: schema e user_version insieme.
+            try:
+                conn.executescript(
+                    f"BEGIN;\n{sql}\nPRAGMA user_version={number};\nCOMMIT;"
+                )
+            except Exception:
+                conn.rollback()
+                raise
             version = number
+
+
+def _pre_migration_backup(from_version: int) -> None:
+    from datetime import datetime, timezone
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    destination = config.backups_dir() / f"pre-migration-v{from_version}-{stamp}.db"
+    try:
+        config.backups_dir().mkdir(parents=True, exist_ok=True)
+        backup(destination)
+    except Exception as exc:  # pragma: no cover - dipende dal filesystem
+        import logs
+
+        logs.get("db").warning("backup pre-migrazione non riuscito: %r", exc)
+    else:
+        import logs
+
+        logs.get("db").info("backup pre-migrazione creato: %s", destination)
 
 
 def backup(destination: str | Path) -> Path:
     """Backup consistente del DB con l'API di SQLite (WAL incluso)."""
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.resolve() == path().resolve():
+        raise ValueError("La destinazione del backup non può essere il database attivo.")
     if destination.exists():
         destination.unlink()
     source = connection()

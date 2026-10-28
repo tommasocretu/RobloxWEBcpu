@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<title>Moderazione — RobloxWeb</title>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js"></script>
+</head>
+<body>
+<header class="site-header" id="site-header"></header>
+<main class="container">
+  <a class="back-link" href="/">← Torna alla home</a>
+  <section class="section-head">
+    <h1>Moderazione</h1>
+    <span class="muted small">Segnalazioni, contenuti nascosti e ripristino</span>
+  </section>
+  <div class="alert" id="admin-alert" hidden></div>
+  <div class="admin-columns">
+    <section class="admin-box">
+      <div class="section-head">
+        <h2>Segnalazioni aperte <span class="badge badge-unlisted" id="open-count">0</span></h2>
+        <span class="muted small">Ignora oppure nascondi l'esperienza</span>
+      </div>
+      <div class="admin-list" id="reports">
+        <div class="empty">Caricamento…</div>
+      </div>
+    </section>
+    <section class="admin-box">
+      <div class="section-head">
+        <h2>Esperienze nascoste <span class="badge badge-private" id="hidden-count">0</span></h2>
+        <span class="muted small">Non compaiono nel catalogo pubblico</span>
+      </div>
+      <div class="admin-list" id="hidden-list">
+        <div class="empty">Caricamento…</div>
+      </div>
+    </section>
+  </div>
+</main>
+<footer class="site-footer">RobloxWeb — strumenti di moderazione riservati agli amministratori.</footer>
+
+<script>
+(async function () {
+  const alertBox = document.getElementById("admin-alert");
+  const reportsBox = document.getElementById("reports");
+  const hiddenBox = document.getElementById("hidden-list");
+  const openCount = document.getElementById("open-count");
+  const hiddenCount = document.getElementById("hidden-count");
+  const REASONS = {
+    inappropriate: "Contenuto inappropriato",
+    spam: "Spam o truffa",
+    copyright: "Violazione di copyright",
+    other: "Altro",
+  };
+
+  const me = await RW.requireUser();
+  if (!me) return;
+  if (!me.is_admin) {
+    reportsBox.innerHTML = "";
+    hiddenBox.innerHTML = "";
+    RW.setAlert(alertBox, "Questa pagina è riservata agli amministratori.", "error");
+    return;
+  }
+
+  function reportItem(report) {
+    const when = report.created_at
+      ? new Date(report.created_at).toLocaleString("it-IT")
+      : "";
+    return `
+      <article class="admin-item" data-report-id="${report.id}">
+        <div class="admin-item-head">
+          <div>
+            <a href="/place.html?id=${encodeURIComponent(report.place_id)}"><strong>${RW.escape(report.place_title)}</strong></a>
+            <span class="badge badge-${report.place_hidden ? "hidden" : "public"}">${report.place_hidden ? "Nascosta" : "Visibile"}</span>
+            <div class="admin-meta">
+              di ${RW.escape(report.place_author)} · segnalata da ${RW.escape(report.reporter)} · ${RW.escape(when)}
+            </div>
+          </div>
+          <div class="admin-actions">
+            <button class="btn btn-small btn-ghost" type="button" data-resolve="${report.id}" data-action="dismiss">Ignora</button>
+            <button class="btn btn-small btn-danger" type="button" data-resolve="${report.id}" data-action="hide" ${report.place_hidden ? "disabled" : ""}>Nascondi</button>
+          </div>
+        </div>
+        <div class="admin-reason">${RW.escape(REASONS[report.reason] || report.reason)}</div>
+        ${report.details ? `<p class="small muted">${RW.escape(report.details)}</p>` : ""}
+      </article>`;
+  }
+
+  function hiddenItem(place) {
+    return `
+      <article class="admin-item" data-hidden-id="${place.id}">
+        <div class="admin-item-head">
+          <div>
+            <a href="/place.html?id=${encodeURIComponent(place.id)}"><strong>${RW.escape(place.title)}</strong></a>
+            <span class="badge badge-hidden">Nascosta</span>
+            <div class="admin-meta">
+              di ${RW.escape(place.author)}${place.hidden_reason ? " · " + RW.escape(place.hidden_reason) : ""}
+            </div>
+          </div>
+          <div class="admin-actions">
+            <button class="btn btn-small" type="button" data-restore="${place.id}">Ripristina</button>
+          </div>
+        </div>
+      </article>`;
+  }
+
+  function bindReports() {
+    reportsBox.querySelectorAll("[data-resolve]").forEach((button) => {
+      button.addEventListener("click", () => resolveReport(button));
+    });
+  }
+
+  function bindHidden() {
+    hiddenBox.querySelectorAll("[data-restore]").forEach((button) => {
+      button.addEventListener("click", () => restorePlace(button));
+    });
+  }
+
+  async function load() {
+    const [reports, hidden] = await Promise.all([
+      RW.api("/api/admin/reports?status=open"),
+      RW.api("/api/admin/places"),
+    ]);
+    if (!reports.ok) {
+      RW.setAlert(alertBox, reports.error, "error");
+      reportsBox.innerHTML = "";
+      return;
+    }
+    if (!hidden.ok) {
+      RW.setAlert(alertBox, hidden.error, "error");
+      hiddenBox.innerHTML = "";
+      return;
+    }
+    RW.setAlert(alertBox, "", "error");
+    const items = reports.data.reports || [];
+    openCount.textContent = RW.formatNumber(items.length);
+    hiddenCount.textContent = RW.formatNumber((hidden.data.places || []).length);
+    reportsBox.innerHTML = items.length
+      ? items.map(reportItem).join("")
+      : '<div class="empty">Nessuna segnalazione aperta.</div>';
+    hiddenBox.innerHTML = (hidden.data.places || []).length
+      ? hidden.data.places.map(hiddenItem).join("")
+      : '<div class="empty">Nessuna esperienza nascosta.</div>';
+    bindReports();
+    bindHidden();
+  }
+
+  async function resolveReport(button) {
+    const reportId = button.dataset.resolve;
+    const action = button.dataset.action;
+    if (action === "hide" && !confirm("Nascondere questa esperienza dal catalogo pubblico?")) {
+      return;
+    }
+    button.disabled = true;
+    const result = await RW.api("/api/admin/reports/" + reportId + "/resolve", {
+      method: "POST",
+      body: { action },
+    });
+    button.disabled = false;
+    if (!result.ok) {
+      RW.setAlert(alertBox, result.error, "error");
+      return;
+    }
+    await load();
+    RW.setAlert(
+      alertBox,
+      action === "hide" ? "Esperienza nascosta." : "Segnalazione ignorata.",
+      "info"
+    );
+  }
+
+  async function restorePlace(button) {
+    const placeId = button.dataset.restore;
+    button.disabled = true;
+    const result = await RW.api("/api/admin/places/" + placeId + "/moderate", {
+      method: "POST",
+      body: { hidden: false },
+    });
+    button.disabled = false;
+    if (!result.ok) {
+      RW.setAlert(alertBox, result.error, "error");
+      return;
+    }
+    await load();
+    RW.setAlert(alertBox, "Esperienza ripristinata.", "info");
+  }
+
+  await load();
+  await RW.initHeader();
+})();
+</script>
+</body>
+</html>

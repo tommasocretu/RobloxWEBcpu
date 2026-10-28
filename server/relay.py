@@ -10,6 +10,7 @@ import time
 
 import auth
 import config
+import logs
 from wsproto import (
     FrameReader,
     OP_CLOSE,
@@ -26,6 +27,25 @@ MAX_CHAT = 200
 MAX_COORD = 100000.0
 PING_INTERVAL = 15.0
 CLIENT_TIMEOUT = 45.0
+
+_log = logs.get("relay")
+
+
+def _clean_text(value: str, limit: int) -> str:
+    """Rimuove caratteri di controllo e limita la lunghezza."""
+    cleaned = "".join(ch for ch in str(value) if ch.isprintable())
+    return cleaned[:limit].strip()
+
+
+def _rate_ok(stamps: list[float], limit: int, window: float) -> bool:
+    """Finestra scorrevole in-place: True se l'azione è consentita."""
+    now = time.monotonic()
+    cutoff = now - max(0.1, float(window))
+    stamps[:] = [stamp for stamp in stamps if stamp > cutoff]
+    if len(stamps) >= max(1, int(limit)):
+        return False
+    stamps.append(now)
+    return True
 
 
 def _valid_point(value) -> bool:
@@ -46,7 +66,7 @@ class Client(threading.Thread):
         self.server = server
         self.conn = conn
         self.addr = addr
-        self.reader = FrameReader(conn, initial_buffer)
+        self.reader = FrameReader(conn, initial_buffer, max_payload=config.MAX_WS_MESSAGE)
         self.send_lock = threading.Lock()
         self.id: int | None = None
         self.place_id: int | None = None
@@ -56,6 +76,8 @@ class Client(threading.Thread):
         self.last_y = 0.0
         self.last_s = 0.0
         self.last_seen = time.time()
+        self.chat_times: list[float] = []
+        self.state_times: list[float] = []
         self.alive = True
 
     def send_json(self, obj: dict) -> None:
@@ -107,6 +129,8 @@ class Client(threading.Thread):
                         fragments = b""
                 elif opcode == 0x0:  # continuazione
                     fragments += payload
+                    if len(fragments) > config.MAX_WS_MESSAGE:
+                        raise ConnectionError("messaggio troppo grande")
                     if fin:
                         self.server.handle_message(self, fragments.decode("utf-8", "replace"))
                         fragments = b""
@@ -164,13 +188,18 @@ class RelayServer:
         assert self._socket is not None
         self._running = True
         threading.Thread(target=self.heartbeat_loop, daemon=True).start()
-        print(f"[relay] in ascolto su ws://{self.host}:{self.port}")
+        _log.info("in ascolto su ws://%s:%s", self.host, self.port)
         while self._running:
             try:
                 conn, addr = self._socket.accept()
             except OSError:
                 break
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            if not self._accept_allowed(addr):
+                _log.warning("connessione rifiutata (cap): %s", addr)
+                conn.close()
+                continue
+            conn.settimeout(10.0)
             try:
                 headers, rest = read_http_request(conn)
                 if not headers or not accept_handshake(conn, headers):
@@ -179,6 +208,7 @@ class RelayServer:
             except OSError:
                 conn.close()
                 continue
+            conn.settimeout(None)
             client = Client(self, conn, addr, rest)
             with self.lock:
                 self.clients.append(client)
@@ -193,6 +223,19 @@ class RelayServer:
     def live_players(self, place_id: int) -> int:
         with self.lock:
             return sum(1 for c in self.clients if c.place_id == int(place_id))
+
+    def total_players(self) -> int:
+        with self.lock:
+            return sum(1 for c in self.clients if c.id is not None)
+
+    def _accept_allowed(self, addr) -> bool:
+        with self.lock:
+            if len(self.clients) >= config.MAX_WS_CONNECTIONS:
+                return False
+            ip = addr[0] if addr else ""
+            if sum(1 for c in self.clients if c.addr and c.addr[0] == ip) >= config.MAX_WS_PER_IP:
+                return False
+        return True
 
     def room_clients(self, place_id: int) -> list[Client]:
         with self.lock:
@@ -235,12 +278,21 @@ class RelayServer:
             return
 
         if kind == "state":
+            if not _rate_ok(client.state_times, config.WS_STATE_PER_SECOND, 1.0):
+                return
             point = message.get("p")
             if not _valid_point(point):
                 return
+            try:
+                yaw = float(message.get("y", 0.0) or 0.0)
+                speed = float(message.get("s", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                return
+            if not math.isfinite(yaw) or not math.isfinite(speed):
+                return
             client.last_p = [_clamp(point[0]), _clamp(point[1]), _clamp(point[2])]
-            client.last_y = float(message.get("y", 0.0) or 0.0)
-            client.last_s = float(message.get("s", 0.0) or 0.0)
+            client.last_y = yaw
+            client.last_s = speed
             self.broadcast(
                 client.place_id,
                 {
@@ -263,7 +315,16 @@ class RelayServer:
                     }
                 )
                 return
-            value = str(message.get("text", ""))[:MAX_CHAT].strip()
+            if not _rate_ok(client.chat_times, config.WS_CHAT_PER_MINUTE, 60.0):
+                client.send_json(
+                    {
+                        "type": "error",
+                        "code": "rate_limited",
+                        "message": "Stai scrivendo troppo velocemente. Attendi un momento.",
+                    }
+                )
+                return
+            value = _clean_text(message.get("text", ""), MAX_CHAT)
             if value:
                 self.broadcast(
                     client.place_id,
@@ -286,7 +347,7 @@ class RelayServer:
         try:
             payload = auth.parse_ticket(ticket)
         except auth.TicketError as exc:
-            print(f"[relay] ticket rifiutato da {client.addr}: {exc}")
+            _log.warning("ticket rifiutato da %s: %s", client.addr, exc)
             self._reject(client, "Ticket non valido o scaduto.")
             return
         place_id = int(payload["place_id"])
@@ -313,7 +374,7 @@ class RelayServer:
             client.id = self.next_id
             self.next_id += 1
             client.place_id = place_id
-            client.name = str(payload["name"])[:MAX_NAME] or f"Giocatore{client.id}"
+            client.name = _clean_text(payload["name"], MAX_NAME) or f"Giocatore{client.id}"
             client.is_guest = bool(payload["is_guest"])
         peers = [
             c.roster()
@@ -333,10 +394,11 @@ class RelayServer:
             {"type": "join", "id": client.id, "name": client.name},
             exclude=client,
         )
-        print(
-            f"[relay] join place={place_id} id={client.id} name={client.name}"
+        print_join = (
+            f"join place={place_id} id={client.id} name={client.name}"
             f" guest={client.is_guest} room={len(peers) + 1}"
         )
+        _log.info(print_join)
 
     def remove_client(self, client: Client) -> None:
         place_id = client.place_id
@@ -345,7 +407,7 @@ class RelayServer:
                 self.clients.remove(client)
         if client.id is not None and place_id is not None:
             self.broadcast(place_id, {"type": "leave", "id": client.id})
-            print(f"[relay] leave place={place_id} id={client.id} name={client.name}")
+            _log.info("leave place=%s id=%s name=%s", place_id, client.id, client.name)
         client.close_quiet()
 
     def heartbeat_loop(self) -> None:
@@ -354,7 +416,7 @@ class RelayServer:
             now = time.time()
             for client in self.snapshot():
                 if now - client.last_seen > CLIENT_TIMEOUT:
-                    print(f"[relay] timeout id={client.id}")
+                    _log.info("timeout id=%s", client.id)
                     client.close_quiet()
                     continue
                 with client.send_lock:

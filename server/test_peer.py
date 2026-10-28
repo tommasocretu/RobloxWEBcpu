@@ -55,7 +55,10 @@ class Api:
             self.base_url + path,
             data=data,
             method="POST",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Origin": self.base_url,
+            },
         )
         return self._open(request)
 

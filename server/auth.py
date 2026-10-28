@@ -84,6 +84,7 @@ def _public_user(row) -> dict:
         "name": str(row["display_name"]),
         "avatar_color": avatar_color(int(row["id"])),
         "is_guest": bool(row["is_guest"]),
+        "is_admin": bool(row["is_admin"]) if "is_admin" in row.keys() else False,
         "created_at": str(row["created_at"]),
     }
 
@@ -136,9 +137,25 @@ def create_account(username: str, password: str):
     return _insert_user(username, username, password, False)
 
 
+def _dummy_verify(password: str) -> None:
+    """Costo di verifica simile a quello reale per non rivelare gli username."""
+    hashlib.scrypt(
+        password.encode("utf-8")[:MAX_PASSWORD],
+        salt=b"robloxweb-dummy!",
+        n=2**14,
+        r=8,
+        p=1,
+        dklen=32,
+    )
+
+
 def authenticate(username: str, password: str):
     row = get_user_by_username(username.strip())
     if row is None or bool(row["is_guest"]):
+        _dummy_verify(str(password)[:MAX_PASSWORD])
+        return None
+    if len(password) > MAX_PASSWORD:
+        _dummy_verify("")
         return None
     if not verify_password(str(row["password_hash"]), password):
         return None

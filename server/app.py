@@ -16,6 +16,8 @@ from urllib.parse import parse_qs, unquote, urlsplit
 import auth
 import config
 import db
+import logs
+import moderation
 import places
 
 MIME_TYPES = {
@@ -41,37 +43,58 @@ MIME_TYPES = {
     ".map": "application/json; charset=utf-8",
 }
 
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "connect-src 'self' ws: wss:; "
+    "frame-src 'self'; "
+    "frame-ancestors 'self'; "
+    "base-uri 'none'; "
+    "form-action 'self'"
+)
+
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, headers: dict | None = None):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.headers = dict(headers or {})
 
 
 class RateLimiter:
-    """Limite semplice in memoria per IP (finestra scorrevole)."""
+    """Limite in memoria per IP e scope, con finestre scorrevoli indipendenti."""
 
-    def __init__(self, limit: int = config.RATE_LIMIT_MAX, window: float = config.RATE_LIMIT_WINDOW):
-        self.limit = limit
-        self.window = window
+    def __init__(self, limits: dict[str, tuple[int, float]] | None = None):
+        self.limits = dict(limits or config.rate_limits())
         self._lock = threading.Lock()
         self._hits: dict[str, list[float]] = {}
 
-    def allow(self, key: str) -> bool:
+    def check(self, scope: str, key: str) -> tuple[bool, float]:
+        """Ritorna (consentito, secondi di attesa suggeriti)."""
+        limit, window = self.limits.get(scope, self.limits.get("default", (60, 60.0)))
+        limit = max(1, int(limit))
+        window = max(1.0, float(window))
         now = time.monotonic()
-        cutoff = now - self.window
+        cutoff = now - window
+        bucket_key = f"{scope}:{key}"
         with self._lock:
-            values = [stamp for stamp in self._hits.get(key, []) if stamp > cutoff]
-            if len(values) >= self.limit:
-                self._hits[key] = values
-                return False
+            values = [stamp for stamp in self._hits.get(bucket_key, []) if stamp > cutoff]
+            if len(values) >= limit:
+                retry = max(1.0, values[0] + window - now)
+                self._hits[bucket_key] = values
+                return False, retry
             values.append(now)
-            self._hits[key] = values
+            self._hits[bucket_key] = values
             if len(self._hits) > 4096:
                 for old_key in [k for k, v in self._hits.items() if not v or v[-1] <= cutoff]:
                     self._hits.pop(old_key, None)
-        return True
+        return True, 0.0
+
+    def allow(self, scope: str, key: str) -> bool:
+        return self.check(scope, key)[0]
 
 
 class Platform:
@@ -81,6 +104,7 @@ class Platform:
         self.quiet = quiet
         self.ws_port = int(getattr(relay, "port", config.WS_PORT) or config.WS_PORT)
         self.rate_limiter = RateLimiter()
+        self.started_at = time.time()
 
     def live(self, place_id: int) -> int:
         if self.relay is None:
@@ -112,6 +136,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "RobloxWeb/0.1"
     sys_version = ""
+    timeout = 30
 
     # --- entry points ------------------------------------------------------
 
@@ -133,7 +158,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         platform: Platform = self.server.platform
         if not platform.quiet:
-            print("[http] %s - %s" % (self.address_string(), fmt % args))
+            logs.get("http").info("%s - %s", self.address_string(), fmt % args)
 
     @property
     def platform(self) -> Platform:
@@ -160,11 +185,11 @@ class PlatformHandler(BaseHTTPRequestHandler):
                 raise ApiError(405, "Metodo non consentito.")
         except ApiError as exc:
             self._drain_on_error()
-            self._send_json(exc.status, {"error": exc.message})
+            self._send_json(exc.status, {"error": exc.message}, headers=exc.headers)
         except BrokenPipeError:
             pass
         except Exception as exc:  # pragma: no cover - log di sicurezza
-            print(f"[http] errore interno: {exc!r}")
+            logs.get("http").exception("errore interno non gestito: %r", exc)
             self._drain_on_error()
             self._send_json(500, {"error": "Errore interno del server."})
 
@@ -209,6 +234,12 @@ class PlatformHandler(BaseHTTPRequestHandler):
             parsed = urlsplit(referer)
             if parsed.netloc.lower() != host.lower():
                 raise ApiError(403, "Referer non consentito.")
+            return
+        # Le richieste con cookie di sessione devono dichiarare un'origine:
+        # i browser lo fanno sempre per POST/PUT/DELETE same-origin. I client
+        # nativi usano Bearer, quindi non sono soggetti a CSRF.
+        if self._cookie_token() and not self.headers.get("Authorization"):
+            raise ApiError(403, "Origine della richiesta mancante.")
 
     # --- API ---------------------------------------------------------------
 
@@ -221,7 +252,28 @@ class PlatformHandler(BaseHTTPRequestHandler):
         user = auth.resolve_session(session_token) if session_token else None
 
         if route == ["health"] and method == "GET":
-            self._send_json(200, {"ok": True, "ws_port": self.platform.ws_port})
+            db_ok = True
+            try:
+                db.connection().execute("SELECT 1").fetchone()
+            except Exception:
+                db_ok = False
+            live = 0
+            if self.platform.relay is not None:
+                try:
+                    live = int(self.platform.relay.total_players())
+                except Exception:
+                    live = 0
+            self._send_json(
+                200,
+                {
+                    "ok": db_ok,
+                    "version": config.VERSION,
+                    "db": "ok" if db_ok else "error",
+                    "ws_port": self.platform.ws_port,
+                    "uptime": int(max(0, time.time() - self.platform.started_at)),
+                    "live_players": live,
+                },
+            )
             return
 
         if route == ["guest"] and method == "POST":
@@ -229,6 +281,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
             self._discard_body()
             user = auth.create_guest()
             token = auth.create_session(int(user["id"]))
+            self._rotate_cookie_session()
             self._send_json(
                 200, {"user": auth.public_user(user)}, session_token=token
             )
@@ -244,6 +297,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
             except auth.AuthError as exc:
                 raise ApiError(400, str(exc))
             token = auth.create_session(int(user["id"]))
+            self._rotate_cookie_session()
             self._send_json(201, {"user": auth.public_user(user)}, session_token=token)
             return
 
@@ -254,8 +308,17 @@ class PlatformHandler(BaseHTTPRequestHandler):
                 str(body.get("username", "")), str(body.get("password", ""))
             )
             if user is None:
+                logs.get("security").warning(
+                    "login fallito ip=%s user=%s",
+                    self._client_ip(),
+                    str(body.get("username", ""))[:40],
+                )
                 raise ApiError(401, "Username o password non validi.")
             token = auth.create_session(int(user["id"]))
+            self._rotate_cookie_session()
+            logs.get("security").info(
+                "login riuscito ip=%s user=%s", self._client_ip(), user["username"]
+            )
             self._send_json(200, {"user": auth.public_user(user)}, session_token=token)
             return
 
@@ -279,8 +342,16 @@ class PlatformHandler(BaseHTTPRequestHandler):
                 str(body.get("username", "")), str(body.get("password", ""))
             )
             if user is None:
+                logs.get("security").warning(
+                    "token login fallito ip=%s user=%s",
+                    self._client_ip(),
+                    str(body.get("username", ""))[:40],
+                )
                 raise ApiError(401, "Username o password non validi.")
             token = auth.create_session(int(user["id"]))
+            logs.get("security").info(
+                "token emesso ip=%s user=%s", self._client_ip(), user["username"]
+            )
             self._send_json(
                 200,
                 {
@@ -321,6 +392,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
             liked = places.liked_ids(int(user["id"])) if user else set()
             public = auth.public_user(author)
             public.pop("is_guest", None)
+            public.pop("is_admin", None)
             self._send_json(
                 200,
                 {
@@ -329,6 +401,108 @@ class PlatformHandler(BaseHTTPRequestHandler):
                     "places": places.list_by_author(
                         int(author["id"]), self.platform.live, liked
                     ),
+                },
+            )
+            return
+
+        if route == ["admin", "reports"] and method == "GET":
+            admin = self._require_admin(user)
+            status = str(query.get("status", ["open"])[0])
+            self._send_json(
+                200,
+                {
+                    "reports": moderation.list_reports(status),
+                    "counts": moderation.report_counts(),
+                    "admin": str(admin["username"]),
+                },
+            )
+            return
+
+        if (
+            len(route) == 4
+            and route[0] == "admin"
+            and route[1] == "reports"
+            and route[3] == "resolve"
+            and method == "POST"
+        ):
+            self._limit("admin")
+            admin = self._require_admin(user)
+            body = self._read_json()
+            report_id = self._positive_int(route[2], "Segnalazione non trovata.")
+            try:
+                result = moderation.resolve_report(
+                    report_id,
+                    int(admin["id"]),
+                    str(body.get("action", "dismiss")),
+                    str(body.get("reason", "")),
+                )
+            except moderation.ModerationError as exc:
+                raise ApiError(400, str(exc))
+            logs.get("security").info(
+                "admin=%s report=%s action=%s place=%s",
+                admin["username"],
+                report_id,
+                result["action"],
+                result["place_id"],
+            )
+            self._send_json(
+                200,
+                {
+                    **result,
+                    "counts": moderation.report_counts(),
+                },
+            )
+            return
+
+        if route == ["admin", "places"] and method == "GET":
+            admin = self._require_admin(user)
+            hidden = str(query.get("hidden", ["1"])[0]).lower() not in ("0", "false", "no")
+            self._send_json(
+                200,
+                {
+                    "places": moderation.list_hidden_places() if hidden else [],
+                    "counts": moderation.report_counts(),
+                    "admin": str(admin["username"]),
+                },
+            )
+            return
+
+        if (
+            len(route) == 4
+            and route[0] == "admin"
+            and route[1] == "places"
+            and route[3] == "moderate"
+            and method == "POST"
+        ):
+            self._limit("admin")
+            admin = self._require_admin(user)
+            body = self._read_json()
+            hidden = body.get("hidden", True)
+            if not isinstance(hidden, bool):
+                raise ApiError(400, 'Il campo "hidden" deve essere true o false.')
+            place_id = self._positive_int(route[2], "Esperienza non trovata.")
+            try:
+                moderation.set_hidden(
+                    place_id, hidden, str(body.get("reason", ""))
+                )
+            except moderation.ModerationError as exc:
+                raise ApiError(404, str(exc))
+            logs.get("security").info(
+                "admin=%s place=%s hidden=%s", admin["username"], place_id, hidden
+            )
+            row = places.get_place(place_id)
+            if row is None:
+                raise ApiError(404, "Esperienza non trovata.")
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "place": places.public_place(
+                        row,
+                        self.platform.live(place_id),
+                        places.is_liked(place_id, int(admin["id"])),
+                    ),
+                    "counts": moderation.report_counts(),
                 },
             )
             return
@@ -381,7 +555,8 @@ class PlatformHandler(BaseHTTPRequestHandler):
             if row is None:
                 raise ApiError(404, "Esperienza non trovata.")
             if not places.can_view(row, int(user["id"]) if user else None):
-                raise ApiError(403, "Esperienza privata.")
+                if not moderation.is_admin(user):
+                    raise ApiError(403, "Esperienza non disponibile.")
             liked = places.is_liked(place_id, int(user["id"])) if user else False
             detail = places.public_place(row, self.platform.live(place_id), liked)
             self._send_json(200, {"place": detail})
@@ -397,6 +572,8 @@ class PlatformHandler(BaseHTTPRequestHandler):
             row = places.get_place(place_id)
             if row is None:
                 raise ApiError(404, "Esperienza non trovata.")
+            if bool(row["hidden"]):
+                raise ApiError(403, "Esperienza non disponibile.")
             if not places.can_view(row, int(account["id"])):
                 raise ApiError(403, "Esperienza privata.")
             liked, likes = places.toggle_like(place_id, int(account["id"]))
@@ -413,6 +590,8 @@ class PlatformHandler(BaseHTTPRequestHandler):
             row = places.get_place(place_id)
             if row is None:
                 raise ApiError(404, "Esperienza non trovata.")
+            if bool(row["hidden"]):
+                raise ApiError(403, "Esperienza non disponibile.")
             if not places.can_view(row, int(account["id"])):
                 raise ApiError(403, "Esperienza privata.")
             if places.is_owner(row, int(account["id"])):
@@ -465,6 +644,7 @@ class PlatformHandler(BaseHTTPRequestHandler):
             return
 
         if len(route) == 3 and route[0] == "places" and route[2] == "play" and method == "POST":
+            self._limit("play")
             self._discard_body()
             if user is None:
                 raise ApiError(401, "Accedi per giocare.")
@@ -472,7 +652,9 @@ class PlatformHandler(BaseHTTPRequestHandler):
             row = places.get_place(place_id)
             if row is None:
                 raise ApiError(404, "Esperienza non trovata.")
-            if not places.can_view(row, int(user["id"])):
+            if bool(row["hidden"]) and not moderation.is_admin(user):
+                raise ApiError(403, "Esperienza non disponibile.")
+            if not places.can_view(row, int(user["id"])) and not moderation.is_admin(user):
                 raise ApiError(403, "Esperienza privata.")
             version = places.current_version(place_id)
             if version is None:
@@ -665,6 +847,15 @@ class PlatformHandler(BaseHTTPRequestHandler):
             raise ApiError(403, message)
         return user
 
+    def _require_admin(self, user):
+        if user is None:
+            raise ApiError(401, "Sessione mancante o scaduta.")
+        if bool(user["is_guest"]):
+            raise ApiError(403, "Gli ospiti non possono moderare.")
+        if not moderation.is_admin(user):
+            raise ApiError(403, "Accesso riservato agli amministratori.")
+        return user
+
     def _owned_place(self, place_id: int, user):
         row = places.get_place(place_id)
         if row is None:
@@ -673,16 +864,39 @@ class PlatformHandler(BaseHTTPRequestHandler):
             raise ApiError(403, "Non sei l'autore di questa esperienza.")
         return row
 
+    def _client_ip(self) -> str:
+        if config.TRUST_PROXY:
+            forwarded = self.headers.get("X-Forwarded-For", "")
+            if forwarded:
+                candidate = forwarded.split(",", 1)[0].strip()
+                if candidate and len(candidate) <= 64:
+                    return candidate
+        return self.client_address[0]
+
     def _limit(self, scope: str) -> None:
-        key = f"{self.client_address[0]}:{scope}"
-        if not self.platform.rate_limiter.allow(key):
-            raise ApiError(429, "Troppi tentativi. Riprova tra poco.")
+        key = self._client_ip()
+        allowed, retry = self.platform.rate_limiter.check(scope, key)
+        if not allowed:
+            logs.get("security").warning(
+                "rate limit scope=%s ip=%s path=%s", scope, self._client_ip(), self.path
+            )
+            raise ApiError(
+                429,
+                "Troppi tentativi. Riprova tra poco.",
+                headers={"Retry-After": str(max(1, int(retry + 0.999)))},
+            )
+
+    def _positive_int(self, value: str, message: str) -> int:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            raise ApiError(404, message)
+        if number <= 0:
+            raise ApiError(404, message)
+        return number
 
     def _place_id(self, value: str) -> int:
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            raise ApiError(404, "Esperienza non trovata.")
+        return self._positive_int(value, "Esperienza non trovata.")
 
     def _ws_url(self) -> str:
         if config.WS_PUBLIC_URL:
@@ -700,6 +914,11 @@ class PlatformHandler(BaseHTTPRequestHandler):
     # --- body / risposte ---------------------------------------------------
 
     def _content_length(self) -> int:
+        encoding = self.headers.get("Transfer-Encoding", "").strip().lower()
+        if encoding:
+            # Il server non decodifica chunked: rifiutare evita richieste ambigue.
+            self.close_connection = True
+            raise ApiError(411, "Lunghezza della richiesta obbligatoria.")
         try:
             length = int(self.headers.get("Content-Length", "0") or "0")
         except ValueError:
@@ -761,6 +980,15 @@ class PlatformHandler(BaseHTTPRequestHandler):
             return authorization[7:].strip()
         return self._cookie("rw_session")
 
+    def _cookie_token(self) -> str:
+        return self._cookie("rw_session")
+
+    def _rotate_cookie_session(self) -> None:
+        """Elimina la vecchia sessione cookie dopo login/registrazione/ospite."""
+        old = self._cookie_token()
+        if old:
+            auth.delete_session(old)
+
     def _session_cookie(self, token: str, clear: bool = False) -> str:
         if clear:
             value = "rw_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
@@ -781,14 +1009,17 @@ class PlatformHandler(BaseHTTPRequestHandler):
         *,
         session_token: str | None = None,
         clear_session: bool = False,
+        headers: dict | None = None,
     ) -> None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        headers = {"Cache-Control": "no-store"}
+        extra = {"Cache-Control": "no-store"}
+        if headers:
+            extra.update(headers)
         if session_token is not None:
-            headers["Set-Cookie"] = self._session_cookie(session_token)
+            extra["Set-Cookie"] = self._session_cookie(session_token)
         if clear_session:
-            headers["Set-Cookie"] = self._session_cookie("", clear=True)
-        self._send_bytes(status, "application/json; charset=utf-8", body, headers)
+            extra["Set-Cookie"] = self._session_cookie("", clear=True)
+        self._send_bytes(status, "application/json; charset=utf-8", body, extra)
 
     def _redirect(self, location: str) -> None:
         self.send_response(301)
@@ -803,10 +1034,16 @@ class PlatformHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("X-Content-Type-Options", "nosniff")
+        base_headers = {
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "same-origin",
+            "X-Frame-Options": "SAMEORIGIN",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        }
         if extra_headers:
-            for key, value in extra_headers.items():
-                self.send_header(key, value)
+            base_headers.update(extra_headers)
+        for key, value in base_headers.items():
+            self.send_header(key, value)
         self.end_headers()
         if self.command != "HEAD":
             try:
@@ -870,11 +1107,14 @@ class PlatformHandler(BaseHTTPRequestHandler):
         ):
             if "charset=" not in content_type:
                 content_type += "; charset=utf-8"
+        extra = {"Cache-Control": "no-store"}
+        if content_type.startswith("text/html") and not normalized.startswith("/dev/"):
+            extra["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
         self._send_bytes(
             200,
             content_type,
             body,
-            {"Cache-Control": "no-store"},
+            extra,
         )
 
 
@@ -885,6 +1125,7 @@ def create_server(
     web_root: str | Path | None = None,
     quiet: bool = False,
 ) -> PlatformHTTPServer:
+    logs.setup(quiet=quiet)
     platform = Platform(relay=relay, web_root=web_root, quiet=quiet)
     server = PlatformHTTPServer((host, port), platform)
     return server
