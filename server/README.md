@@ -1,4 +1,4 @@
-# Server RobloxWeb (M0–M2)
+# Server RobloxWeb (M0–M3)
 
 Un solo processo Python (solo standard library) che serve:
 
@@ -6,9 +6,9 @@ Un solo processo Python (solo standard library) che serve:
 - il relay WebSocket multi-giocatore su `ws://127.0.0.1:9081`;
 - il database SQLite e i dati locali in `server/data/` (gitignored).
 
-Il server non cambia in M2: RobloxWeb Studio (desktop) usa le stesse API M1
-(`POST /api/token`, `/api/me/places`, `/api/places/<id>/data`,
-`POST /api/places[/<id>/versions]`, thumbnail).
+Il server M3 non introduce nuove route: accetta e valida i livelli v2 con
+`scripts[]` (id/nome/parent/enabled/sorgente) e li salva come gli altri livelli;
+il client web e Studio eseguono gli script Lua sandboxati.
 
 ## Avvio
 
@@ -23,7 +23,9 @@ Al primo avvio vengono creati (seed idempotente):
 
 - utente `demo` / `demo1234` — **cambiare la password** per un uso reale;
 - utente autore `RobloxWeb`;
-- place **Welcome Obby** con `Godot/robloxwebengine/levels/default.rwl.json` come versione 1.
+- place **Welcome Obby** con `Godot/robloxwebengine/levels/default.rwl.json`;
+- place **Demo script** con `Godot/robloxwebengine/levels/scripts_demo.rwl.json`
+  (porta con `Touched`, piattaforma rotante, lava e teletrasporto).
 
 Variabili d'ambiente: `ROBLOXWEB_HOST`, `ROBLOXWEB_HTTP_PORT`, `ROBLOXWEB_WS_PORT`,
 `ROBLOXWEB_DATA_DIR`, `ROBLOXWEB_WS_URL` (override esplicito dell'URL WS restituito dall'API).
@@ -75,7 +77,7 @@ e viene validato dal relay. Non è un JWT e non contiene la password.
   "title": "La mia esperienza",
   "description": "Testo libero",
   "visibility": "public",
-  "level": { "format": "robloxweb-level", "version": 1, "meta": {}, "parts": [] }
+  "level": { "format": "robloxweb-level", "version": 2, "meta": {}, "parts": [], "scripts": [] }
 }
 ```
 
@@ -83,6 +85,8 @@ e viene validato dal relay. Non è un JWT e non contiene la password.
   in quest'ultimo caso il server la salva **senza riserializzarla**.
 - `visibility`: `public`, `unlisted`, `private`.
 - `title` massimo 60 caratteri, `description` 500, livello 2 MB, parti 2000, script 200.
+- `scripts[]` (v2): max 200, id unici, `name` 1–40 caratteri, `parent_id` esistente
+  (o vuoto = workspace), `enabled` bool, `source` max 64 KB. Script in v1 rifiutati.
 - La nuova versione diventa subito corrente e incrementa `current_version`;
   `updated_at` cambia. La thumbnail precedente viene ereditata finché non se ne carica una nuova.
 - Errori: 400 (dati non validi), 401 (non autenticato), 403 (ospite o non owner),

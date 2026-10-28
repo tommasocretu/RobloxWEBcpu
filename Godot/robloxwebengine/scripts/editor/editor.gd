@@ -132,6 +132,20 @@ var _places_list: ItemList
 var _places_status: Label
 var _places_open_button: Button
 
+# Script e output (M3)
+var _lua_runtime: LuaRuntime
+var _nodes_by_id: Dictionary = {}
+var _script_window: Window
+var _script_list: ItemList
+var _script_name_edit: LineEdit
+var _script_parent_label: Label
+var _script_enabled_check: CheckBox
+var _script_source: CodeEdit
+var _script_status: Label
+var _output_window: Window
+var _output_text: RichTextLabel
+var _output_lines: Array = []
+
 
 func _ready() -> void:
 	_file_io = LevelFileIO.new()
@@ -220,13 +234,8 @@ func _build_ui() -> void:
 	publish_button.name = "PublishButton"
 	_add_top_button(publish_box, "Place…", _open_my_places)
 	_add_top_button(publish_box, "Account", _open_server_window)
-	if _studio_mode():
-		var script_button := _add_top_button(publish_box, "Script", _coming_soon)
-		script_button.disabled = true
-		script_button.tooltip_text = "Editor degli script: disponibile in M3"
-		var output_button := _add_top_button(publish_box, "Output", _coming_soon)
-		output_button.disabled = true
-		output_button.tooltip_text = "Console degli script: disponibile in M3"
+	_add_top_button(publish_box, "Script", _open_script_window)
+	_add_top_button(publish_box, "Output", _open_output_window)
 	_account_label = Label.new()
 	_account_label.text = "Non connesso"
 	_account_label.add_theme_font_size_override("font_size", 13)
@@ -496,10 +505,14 @@ func _find_node(entity_id: String) -> Node3D:
 
 
 func _rebuild() -> void:
-	LevelBuilder.build_into(world, data)
+	_stop_lua()
+	_nodes_by_id = LevelBuilder.build_into(world, data)
 	if not simulate:
 		_freeze_dynamics()
+	else:
+		_start_lua()
 	_refresh_explorer()
+	_refresh_script_list()
 	_update_highlight()
 	_update_window_title()
 
@@ -868,10 +881,15 @@ func delete_selected() -> bool:
 		if str(parts[i].get("id", "")) == selected_id:
 			parts.remove_at(i)
 			break
+	var scripts: Array = data.get("scripts", [])
+	for i in range(scripts.size() - 1, -1, -1):
+		if str(scripts[i].get("parent_id", "")) == selected_id:
+			scripts.remove_at(i)
 	selected_id = ""
 	_mark_dirty()
 	_rebuild()
 	_refresh_properties()
+	_refresh_script_list()
 	return true
 
 
@@ -978,12 +996,14 @@ func _save_file_pressed() -> void:
 
 func _test_play() -> void:
 	_write_autosave()
+	_stop_lua()
 	LevelData.play_request = data.duplicate(true)
 	get_tree().change_scene_to_file(MAIN_SCENE_PATH)
 
 
 func _exit_editor() -> void:
 	_write_autosave()
+	_stop_lua()
 	if _studio_mode():
 		get_tree().change_scene_to_file(STUDIO_SCENE_PATH)
 	else:
@@ -992,10 +1012,6 @@ func _exit_editor() -> void:
 
 func _studio_mode() -> bool:
 	return StudioSession.is_studio_build()
-
-
-func _coming_soon() -> void:
-	_status.text = "Gli script arrivano con la milestone M3."
 
 
 # --- Pubblicazione (M1) -------------------------------------------------------------
@@ -1527,6 +1543,361 @@ func _save_publish_settings() -> void:
 	LevelIO.save_to_path(PUBLISH_SETTINGS_PATH, payload)
 
 
+# --- Script e output (M3) -------------------------------------------------------
+
+func _open_script_window() -> void:
+	_build_script_window()
+	_refresh_script_list()
+	var entity_scripts := _script_indices_for_entity(selected_id)
+	if not entity_scripts.is_empty():
+		var target := int(entity_scripts[0])
+		_script_list.select(target)
+		_on_script_selected(target)
+	elif _script_list.item_count > 0:
+		_script_list.select(0)
+		_on_script_selected(0)
+	_script_window.popup_centered()
+
+
+func _build_script_window() -> void:
+	if _script_window != null:
+		return
+	_script_window = Window.new()
+	_script_window.name = "ScriptWindow"
+	_script_window.title = "RobloxWeb Studio — Script"
+	_script_window.size = Vector2i(980, 660)
+	_script_window.min_size = Vector2i(760, 480)
+	_script_window.visible = false
+	_script_window.close_requested.connect(func() -> void: _script_window.hide())
+	add_child(_script_window)
+
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	_script_window.add_child(margin)
+	var split := HSplitContainer.new()
+	margin.add_child(split)
+
+	var left := VBoxContainer.new()
+	left.custom_minimum_size.x = 230
+	left.add_theme_constant_override("separation", 6)
+	split.add_child(left)
+	var list_title := Label.new()
+	list_title.text = "Script del livello"
+	list_title.add_theme_font_size_override("font_size", 14)
+	left.add_child(list_title)
+	_script_list = ItemList.new()
+	_script_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_script_list.item_selected.connect(_on_script_selected)
+	left.add_child(_script_list)
+	var left_buttons := HBoxContainer.new()
+	left_buttons.add_theme_constant_override("separation", 6)
+	left.add_child(left_buttons)
+	var new_button := Button.new()
+	new_button.text = "Nuovo"
+	new_button.pressed.connect(_new_script)
+	left_buttons.add_child(new_button)
+	var delete_button := Button.new()
+	delete_button.text = "Elimina"
+	delete_button.pressed.connect(_delete_script)
+	left_buttons.add_child(delete_button)
+
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 6)
+	split.add_child(right)
+	var name_row := HBoxContainer.new()
+	name_row.add_child(_make_field_label("Nome"))
+	_script_name_edit = LineEdit.new()
+	_script_name_edit.max_length = LevelData.MAX_NAME_LENGTH
+	_script_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(_script_name_edit)
+	right.add_child(name_row)
+	var parent_row := HBoxContainer.new()
+	parent_row.add_child(_make_field_label("Attaccato a"))
+	_script_parent_label = Label.new()
+	_script_parent_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_script_parent_label.add_theme_color_override("font_color", Color(0.72, 0.80, 0.92))
+	parent_row.add_child(_script_parent_label)
+	var attach_button := Button.new()
+	attach_button.text = "Usa selezione"
+	attach_button.tooltip_text = "Attacca lo script alla parte selezionata (o a Workspace)"
+	attach_button.pressed.connect(_attach_script_to_selection)
+	parent_row.add_child(attach_button)
+	right.add_child(parent_row)
+	_script_enabled_check = CheckBox.new()
+	_script_enabled_check.text = "Script abilitato"
+	right.add_child(_script_enabled_check)
+	var source_label := Label.new()
+	source_label.text = "Sorgente Lua"
+	source_label.add_theme_font_size_override("font_size", 13)
+	source_label.add_theme_color_override("font_color", Color(0.70, 0.75, 0.85))
+	right.add_child(source_label)
+	_script_source = CodeEdit.new()
+	_script_source.custom_minimum_size = Vector2(0, 380)
+	_script_source.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_script_source.wrap_mode = TextEdit.LINE_WRAPPING_NONE
+	_script_source.add_theme_font_size_override("font_size", 13)
+	right.add_child(_script_source)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	right.add_child(actions)
+	_script_status = Label.new()
+	_script_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_script_status.add_theme_font_size_override("font_size", 12)
+	_script_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	actions.add_child(_script_status)
+	var apply_button := Button.new()
+	apply_button.text = "Applica"
+	apply_button.pressed.connect(_apply_script_edits)
+	actions.add_child(apply_button)
+	var close_button := Button.new()
+	close_button.text = "Chiudi"
+	close_button.pressed.connect(func() -> void: _script_window.hide())
+	actions.add_child(close_button)
+
+
+func _refresh_script_list() -> void:
+	if _script_list == null:
+		return
+	var selected_script := _selected_script()
+	var selected_script_id := str(selected_script.get("id", ""))
+	_script_list.clear()
+	var scripts: Array = data.get("scripts", [])
+	for index in scripts.size():
+		var script = scripts[index]
+		if typeof(script) != TYPE_DICTIONARY:
+			continue
+		var parent_id := str(script.get("parent_id", ""))
+		var label := "%s  →  %s" % [str(script.get("name", "?")), _parent_name(parent_id)]
+		if not bool(script.get("enabled", true)):
+			label += "  [disabilitato]"
+		var item := _script_list.add_item(label)
+		_script_list.set_item_metadata(item, index)
+		if str(script.get("id", "")) == selected_script_id:
+			_script_list.select(item)
+	if selected_script_id == "" and _script_list.item_count > 0:
+		_script_list.select(0)
+		_on_script_selected(0)
+
+
+func _script_indices_for_entity(entity_id: String) -> Array:
+	var result: Array = []
+	var scripts: Array = data.get("scripts", [])
+	for index in scripts.size():
+		if typeof(scripts[index]) == TYPE_DICTIONARY\
+				and str(scripts[index].get("parent_id", "")) == entity_id:
+			result.append(index)
+	return result
+
+
+func _on_script_selected(index: int) -> void:
+	if _script_list == null or index < 0 or index >= _script_list.item_count:
+		return
+	var data_index := int(_script_list.get_item_metadata(index))
+	var scripts: Array = data.get("scripts", [])
+	if data_index < 0 or data_index >= scripts.size() or typeof(scripts[data_index]) != TYPE_DICTIONARY:
+		return
+	var script: Dictionary = scripts[data_index]
+	_script_name_edit.text = str(script.get("name", ""))
+	_script_enabled_check.set_pressed_no_signal(bool(script.get("enabled", true)))
+	_script_source.text = str(script.get("source", ""))
+	_script_parent_label.text = _parent_name(str(script.get("parent_id", "")))
+	_script_status.text = ""
+
+
+func _selected_script() -> Dictionary:
+	if _script_list == null:
+		return {}
+	var selected := _script_list.get_selected_items()
+	if selected.is_empty():
+		return {}
+	var data_index := int(_script_list.get_item_metadata(selected[0]))
+	var scripts: Array = data.get("scripts", [])
+	if data_index < 0 or data_index >= scripts.size() or typeof(scripts[data_index]) != TYPE_DICTIONARY:
+		return {}
+	return scripts[data_index]
+
+
+func _parent_name(parent_id: String) -> String:
+	if parent_id == "":
+		return "Workspace"
+	for entity in data.get("parts", []):
+		if typeof(entity) == TYPE_DICTIONARY and str(entity.get("id", "")) == parent_id:
+			return str(entity.get("name", parent_id))
+	return "%s (mancante)" % parent_id
+
+
+func _new_script() -> void:
+	var scripts: Array = data.get("scripts", [])
+	if scripts.size() >= LevelData.MAX_SCRIPTS:
+		_script_status.text = "Limite di %d script raggiunto." % LevelData.MAX_SCRIPTS
+		return
+	_push_undo()
+	var script_name := LevelData.next_script_name(scripts)
+	var parent_id := selected_id
+	var source := "-- Script: %s\n-- script.Parent è la parte a cui è attaccato lo script.\nlocal parent = script.Parent\n\nparent.Touched:Connect(function(hit)\n\tprint(hit.Name, \"ha toccato\", parent.Name)\nend)\n\nprint(\"Script avviato:\", script.Name)\n" % script_name
+	var script := {
+		"id": LevelData.next_script_id(scripts),
+		"name": script_name,
+		"parent_id": parent_id,
+		"enabled": true,
+		"source": source,
+	}
+	scripts.append(script)
+	data["scripts"] = scripts
+	data["version"] = maxi(int(data.get("version", 1)), LevelData.VERSION)
+	_mark_dirty()
+	_refresh_script_list()
+	var index := scripts.size() - 1
+	if _script_list != null:
+		for item in _script_list.item_count:
+			if int(_script_list.get_item_metadata(item)) == index:
+				_script_list.select(item)
+				_on_script_selected(item)
+				break
+	_script_status.text = "Script creato."
+	_restart_lua_if_simulating()
+
+
+func _delete_script() -> void:
+	var script := _selected_script()
+	if script.is_empty():
+		_script_status.text = "Nessuno script selezionato."
+		return
+	_push_undo()
+	var scripts: Array = data.get("scripts", [])
+	var script_id := str(script.get("id", ""))
+	for index in range(scripts.size() - 1, -1, -1):
+		if typeof(scripts[index]) == TYPE_DICTIONARY and str(scripts[index].get("id", "")) == script_id:
+			scripts.remove_at(index)
+			break
+	_mark_dirty()
+	_refresh_script_list()
+	_script_status.text = "Script eliminato."
+	_restart_lua_if_simulating()
+
+
+func _attach_script_to_selection() -> void:
+	var script := _selected_script()
+	if script.is_empty():
+		_script_status.text = "Nessuno script selezionato."
+		return
+	_push_undo()
+	script["parent_id"] = selected_id
+	_script_parent_label.text = _parent_name(selected_id)
+	_mark_dirty()
+	_refresh_script_list()
+	_script_status.text = "Attaccato a %s." % _parent_name(selected_id)
+	_restart_lua_if_simulating()
+
+
+func _apply_script_edits() -> void:
+	var script := _selected_script()
+	if script.is_empty():
+		_script_status.text = "Nessuno script selezionato."
+		return
+	if _script_source == null or _script_name_edit == null:
+		_script_status.text = "Pannello script non inizializzato."
+		return
+	var script_name := _script_name_edit.text.strip_edges()
+	if script_name == "":
+		_script_status.text = "Il nome è obbligatorio."
+		return
+	var source := _script_source.text
+	if source.to_utf8_buffer().size() > LevelData.MAX_SCRIPT_BYTES:
+		_script_status.text = "Sorgente troppo lungo (max %d byte)." % LevelData.MAX_SCRIPT_BYTES
+		return
+	_push_undo()
+	script["name"] = script_name.left(LevelData.MAX_NAME_LENGTH)
+	script["enabled"] = _script_enabled_check.button_pressed
+	script["source"] = source
+	data["version"] = maxi(int(data.get("version", 1)), LevelData.VERSION)
+	_mark_dirty()
+	_refresh_script_list()
+	_script_status.text = "Script aggiornato."
+	_restart_lua_if_simulating()
+
+
+func _restart_lua_if_simulating() -> void:
+	if simulate:
+		_start_lua()
+
+
+func _open_output_window() -> void:
+	_build_output_window()
+	_refresh_output_text()
+	_output_window.popup_centered()
+
+
+func _build_output_window() -> void:
+	if _output_window != null:
+		return
+	_output_window = Window.new()
+	_output_window.name = "OutputWindow"
+	_output_window.title = "RobloxWeb Studio — Output"
+	_output_window.size = Vector2i(720, 460)
+	_output_window.min_size = Vector2i(480, 300)
+	_output_window.visible = false
+	_output_window.close_requested.connect(func() -> void: _output_window.hide())
+	add_child(_output_window)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	_output_window.add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	margin.add_child(root)
+	_output_text = RichTextLabel.new()
+	_output_text.bbcode_enabled = false
+	_output_text.scroll_following = true
+	_output_text.selection_enabled = true
+	_output_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_output_text.custom_minimum_size = Vector2(0, 340)
+	root.add_child(_output_text)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	root.add_child(actions)
+	var clear_button := Button.new()
+	clear_button.text = "Pulisci"
+	clear_button.pressed.connect(_clear_output)
+	actions.add_child(clear_button)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	actions.add_child(spacer)
+	var close_button := Button.new()
+	close_button.text = "Chiudi"
+	close_button.pressed.connect(func() -> void: _output_window.hide())
+	actions.add_child(close_button)
+
+
+func _refresh_output_text() -> void:
+	if _output_text == null:
+		return
+	_output_text.clear()
+	for line in _output_lines:
+		_append_output_line(str(line.get("text", "")), int(line.get("level", 0)))
+
+
+func _append_output_line(text: String, level: int) -> void:
+	if _output_text == null:
+		return
+	var color := Color(0.82, 0.87, 0.93)
+	if level == 1:
+		color = Color(1.0, 0.82, 0.35)
+	elif level >= 2:
+		color = Color(1.0, 0.42, 0.45)
+	_output_text.push_color(color)
+	_output_text.add_text(text + "\n")
+	_output_text.pop()
+
+
+func _clear_output() -> void:
+	_output_lines.clear()
+	if _output_text:
+		_output_text.clear()
+
+
 # --- Input e piazzamento ------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1652,7 +2023,36 @@ func _toggle_snap() -> void:
 func _toggle_simulate() -> void:
 	simulate = not simulate
 	_rebuild()
-	_status.text = "Simulazione attiva." if simulate else "Simulazione in pausa."
+	_status.text = "Simulazione attiva (script inclusi)." if simulate else "Simulazione in pausa."
+	if simulate and _lua_runtime != null:
+		_status.text += " Script attivi: %d." % _lua_runtime.active_script_count()
+
+
+func _stop_lua() -> void:
+	if _lua_runtime == null:
+		return
+	_lua_runtime.stop()
+	_lua_runtime.queue_free()
+	_lua_runtime = null
+
+
+func _start_lua() -> void:
+	_stop_lua()
+	if not simulate:
+		return
+	_lua_runtime = LuaRuntime.new()
+	_lua_runtime.name = "LuaRuntime"
+	_lua_runtime.output_line.connect(_on_lua_output)
+	add_child(_lua_runtime)
+	_lua_runtime.start(data, world, _nodes_by_id, null, "Studio")
+
+
+func _on_lua_output(text: String, level: int) -> void:
+	_output_lines.append({"text": text, "level": level})
+	while _output_lines.size() > 500:
+		_output_lines.pop_front()
+	if _output_text != null:
+		_append_output_line(text, level)
 
 
 func _find_child_button(button_name: String) -> Button:

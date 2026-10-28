@@ -14,7 +14,7 @@
   `build/studio/windows/`), generati da `build_studio.sh` e gitignored.
 - `PLAN.md` è il piano completo della piattaforma (M0–M5).
 
-## Stato attuale: M2 — Studio desktop
+## Stato attuale: M3 — Lua sandbox
 
 Flusso funzionante in locale:
 
@@ -31,16 +31,25 @@ Flusso funzionante in locale:
 8. **M2:** `./build_studio.sh` produce **RobloxWeb Studio** per Linux e Windows
    (`build/studio/…` + zip in `WEBhtml/downloads/`). Studio parte dalla schermata
    iniziale: accedi/continua offline, nuova esperienza, apri file, **Le mie place**.
-   L'editor ha la barra **Pubblica / Place… / Account / Script / Output** (Script e
-   Output sono placeholder per M3), anteprima thumbnail e **Esci** che torna alla
-   schermata iniziale.
+   L'editor ha la barra **Pubblica / Place… / Account / Script / Output**, anteprima
+   thumbnail e **Esci** che torna alla schermata iniziale.
 9. Il profilo (`profile.html`) mostra le proprie esperienze con badge di visibilità e
    dialog **Modifica**; `profile.html?user=<id>` è il profilo autore pubblico.
 10. Home, pagina esperienza e profilo aggiornano visite e giocatori live con polling
     leggero (10–15 s, sospeso quando la scheda è in background).
+11. **M3:** ogni script Lua del livello gira in una VM sandboxata (lexer → parser →
+    bytecode → VM) sia in Studio sia nel client web. `task.wait/spawn/delay`, tabelle,
+    closure, `workspace`, `Instance.new("Part")`, `Touched`/`TouchEnded`, proprietà
+    delle parti e wrapper Humanoid; nessun accesso a OS/filesystem/rete.
+12. Editor Studio: pannello **Script** (lista, crea/attacca, CodeEdit) e **Output**
+    (print/warn/error), **Simula** avvia anche gli script; il formato livello v2 salva
+    `scripts[]` con `id`, `name`, `parent_id`, `enabled`, `source`. Il seed crea anche
+    la place **Demo script** (`levels/scripts_demo.rwl.json`) con porta, piattaforma
+    rotante, lava e teletrasporto.
 
 Seed idempotente al primo avvio: utente `demo` / `demo1234` (cambiare la password!),
-autore `RobloxWeb`, place **Welcome Obby** da `levels/default.rwl.json`.
+autore `RobloxWeb`, place **Welcome Obby** da `levels/default.rwl.json` e place
+**Demo script** da `levels/scripts_demo.rwl.json`.
 
 ## Server
 
@@ -127,8 +136,45 @@ Launcher `scripts/main.gd`:
   da `SubViewport` che condivide il `World3D`, `meta.place_id`/`published_version`/
   `visibility` nel livello e nell'autosave. In Studio **Esci** torna alla start screen;
   nella build dev nativa torna a `main.tscn`.
+- Pannello **Script** (M3): ItemList degli script, crea/elimina, attacca alla parte
+  selezionata, nome/enabled e `CodeEdit`; **Output** mostra print/warn/error con colori.
+  **Simula** avvia/ferma anche il `LuaRuntime`; **Testa** passa il livello a `main.tscn`
+  che esegue gli script come nel client web.
 - Il vecchio multiplayer nativo (nome in chiaro) non è più supportato dal relay:
   usare il sito web o `tools/test_network.gd` (che ottiene un ticket dall'API).
+
+## Lua sandbox (M3)
+
+Pipeline: `source → LuaLexer → LuaParser → LuaCompiler → LuaPrototype → LuaVM`.
+
+- `scripts/lua/lua_lexer.gd`, `lua_parser.gd`, `lua_compiler.gd`, `lua_prototype.gd`:
+  subset Lua 5.1 (niente goto/metatable/coroutine), bytecode a stack.
+- `lua_values.gd`, `lua_table.gd`, `lua_function.gd`, `lua_builtin.gd`: valori,
+  tabelle con ordine stabile, closure con celle upvalue, ritorni multipli.
+- `lua_vm.gd`: frame, chiamate, operatori, indicizzazione, `pcall`, budget e limiti
+  (profondità 200, 2–4 ms/frame totali via `lua_scheduler.gd`).
+- `lua_stdlib.gd`: `print/warn`, `task.wait/spawn/delay` (+ alias), `math`, `string`,
+  `table`, `pairs/ipairs/next`, `pcall/error/assert`, `tostring/tonumber/type`,
+  `Vector3.new`, `Color3.new/fromRGB`, `Instance.new`.
+- `lua_roblox_api.gd`: `workspace`, `game:GetService("Workspace")`, proprietà parti
+  (`Position/Rotation/Size/Color/Transparency/Anchored/Collide/Name/Parent/Velocity`),
+  `Destroy`, `FindFirstChild`, `GetChildren`, `Touched`/`TouchEnded` con `Area3D`,
+  wrapper `Humanoid` (`Health`, `TakeDamage`, `FindFirstChild("Humanoid")`).
+- `lua_scheduler.gd` (`LuaRuntime`): una VM per script, output/errori, segnali
+  condivisi, `Instance` create dagli script (max 500) distrutte a `stop()`.
+- Errori nel formato `NomeScript:riga: messaggio`; un errore fatale ferma quello
+  script e lascia girare gli altri. Output in Studio e console del browser.
+- I cookie, il relay e il multiplayer non cambiano: gli script sono **client-side**
+  in M3, quindi ogni client esegue la stessa versione del livello.
+
+## Formato livello v2
+
+- `LevelData.VERSION = 2`; v1 resta accettata solo con `scripts: []`.
+- `scripts[]`: `{id, name, parent_id, enabled, source}`; `parent_id` vuoto = workspace,
+  id unici, max 200 script, sorgente max 64 KB.
+- `LevelBuilder.build_into()` ritorna la mappa `id → nodo`; `LevelIO.serialize_world()`
+  accetta gli script da preservare e ignora le istanze create a runtime.
+- Livello demo con script: `levels/scripts_demo.rwl.json` (seed **Demo script**).
 
 ## Godot: comandi e test
 
@@ -145,6 +191,8 @@ flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
 flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
   --script res://tools/test_editor.gd
 flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
+  --script res://tools/test_lua.gd
+flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
   --script res://tools/test_publish.gd
 flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
   --script res://tools/test_studio.gd
@@ -156,9 +204,12 @@ altrimenti la cache delle classi globali è stale e i tool falliscono con
 
 `tools/test_network.gd` richiede il server attivo e usa l'API per ottenere un
 ticket (login `demo`) e simulare un secondo giocatore. `tools/test_publish.gd`
-richiede il server attivo e verifica login Bearer, creazione, v2, download e delete.
-`tools/test_studio.gd` richiede il server attivo e verifica preset, `StudioSession`,
-login e download dalla start screen, consumo del livello da parte dell'editor.
+richiede il server attivo e verifica login Bearer, creazione, v2, download, script
+preservati e delete. `tools/test_studio.gd` richiede il server attivo e verifica
+preset, `StudioSession`, login e download dalla start screen, consumo del livello
+da parte dell'editor. `tools/test_lua.gd` non richiede il server: copre lexer/parser/
+VM, stdlib, closure, errori, sandbox, limiti, formato v2, `Touched`, scheduler e il
+livello demo con script.
 
 ## Export Web
 
@@ -167,7 +218,7 @@ Preset `Web` in `export_presets.cfg`: **single-threaded**
 output `WEBhtml/dev/index.html`, `include_filter="levels/*"`,
 `exclude_filter="tools/*,scenes/editor/*,scripts/editor/*,scenes/studio/*,scripts/studio/*,scripts/net/publish_client.gd"`.
 Non servono header COOP/COEP. L'editor e la start screen di Studio non sono inclusi
-nel client web.
+nel client web; `scripts/lua/*` e `levels/*` (incluso `scripts_demo.rwl.json`) sì.
 
 ```bash
 flatpak run org.godotengine.Godot --headless \
@@ -238,7 +289,10 @@ qui è verificata solo come file/zip. In sviluppo la start screen si apre anche 
   validazione, dati → scena, JSON/file. Entità: `part`, `spawn`, `checkpoint`, `coin`,
   `goal`, `kill`, `moving_platform`, `spinner`, `label`.
 - `scripts/world/part_factory.gd` e script delle parti speciali.
-- `levels/default.rwl.json` è il livello demo seedato come Welcome Obby.
+- `levels/default.rwl.json` è il livello demo seedato come Welcome Obby;
+  `levels/scripts_demo.rwl.json` è il livello M3 seedato come **Demo script**.
+- `scripts/lua/` contiene lexer, parser, compiler, VM, stdlib, API Roblox-like e
+  scheduler; è condiviso da client web e Studio.
 - `scripts/io/level_file_io.gd`: dialog nativi su desktop, `<input type=file>` e
   download su web (usato dall'editor, non dal client web).
 - `scripts/audio/sfx_factory.gd`: SFX procedurali, nessun asset esterno.

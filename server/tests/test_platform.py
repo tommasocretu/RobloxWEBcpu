@@ -648,6 +648,40 @@ class PlatformTest(unittest.TestCase):
         status, _, _ = author.post("/api/places", {"title": "Rotta", "level": broken})
         self.assertEqual(status, 400)
 
+        # Script M3: v2 accettata, campi validati lato server.
+        scripted = self._level("Con script")
+        scripted["version"] = 2
+        scripted["scripts"] = [{
+            "id": "s1",
+            "name": "Porta",
+            "parent_id": scripted["parts"][0]["id"],
+            "enabled": True,
+            "source": "print('ciao')",
+        }]
+        status, _, payload = author.post(
+            "/api/places", {"title": "Con script", "level": scripted}
+        )
+        self.assertEqual(status, 201, payload)
+        status, _, payload = author.post(
+            "/api/places",
+            {"title": "Parent errato", "level": dict(
+                scripted, scripts=[dict(scripted["scripts"][0], parent_id="p999")]
+            )},
+        )
+        self.assertEqual(status, 400)
+        status, _, _ = author.post(
+            "/api/places",
+            {"title": "Id duplicato", "level": dict(
+                scripted, scripts=[scripted["scripts"][0], scripted["scripts"][0]]
+            )},
+        )
+        self.assertEqual(status, 400)
+        status, _, _ = author.post(
+            "/api/places",
+            {"title": "V1 con script", "level": dict(scripted, version=1)},
+        )
+        self.assertEqual(status, 400)
+
         big = dict(level)
         big["padding"] = "x" * (config.MAX_PUBLISH_BODY + 64)
         status, _, _ = author.post("/api/places", {"title": "Enorme", "level": big})

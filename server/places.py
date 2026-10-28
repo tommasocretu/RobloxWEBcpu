@@ -48,6 +48,34 @@ def _validate_level_text(text: str) -> dict:
     scripts = data.get("scripts", [])
     if not isinstance(scripts, list) or len(scripts) > 200:
         raise PlaceError('Campo "scripts" non valido.')
+    if version < 2 and scripts:
+        raise PlaceError("Gli script richiedono la versione 2 del formato.")
+    part_ids = {
+        part.get("id")
+        for part in parts
+        if isinstance(part, dict) and isinstance(part.get("id"), str)
+    }
+    script_ids: set[str] = set()
+    for index, script in enumerate(scripts):
+        if not isinstance(script, dict):
+            raise PlaceError(f"Script #{index}: non è un oggetto.")
+        script_id = script.get("id")
+        if not isinstance(script_id, str) or not script_id.strip():
+            raise PlaceError(f"Script #{index}: id mancante.")
+        if script_id in script_ids:
+            raise PlaceError(f"Script #{index}: id duplicato.")
+        script_ids.add(script_id)
+        name = script.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name) > 40:
+            raise PlaceError(f"Script #{index}: nome non valido.")
+        parent_id = script.get("parent_id", "")
+        if not isinstance(parent_id, str) or (parent_id and parent_id not in part_ids):
+            raise PlaceError(f"Script #{index}: parent_id non valido.")
+        if not isinstance(script.get("enabled", True), bool):
+            raise PlaceError(f"Script #{index}: enabled deve essere true/false.")
+        source = script.get("source", "")
+        if not isinstance(source, str) or len(source.encode("utf-8")) > 65536:
+            raise PlaceError(f"Script #{index}: sorgente troppo lungo.")
     return data
 
 
@@ -464,4 +492,34 @@ def seed_demo() -> dict:
     summary["place_id"] = place_id
     if summary["created_place"]:
         print(f"[seed] creata place \"{config.seed_place_title()}\" (id {place_id})")
+
+    # Seconda esperienza dimostrativa M3 con script Lua (se il file esiste).
+    demo_path = Path(config.SCRIPT_DEMO_LEVEL_PATH)
+    if demo_path.is_file():
+        demo_text = demo_path.read_text(encoding="utf-8")
+        try:
+            _validate_level_text(demo_text)
+        except PlaceError as exc:
+            print(f"[seed] demo script ignorata: {exc}")
+        else:
+            demo = conn.execute(
+                "SELECT * FROM places WHERE owner_id = ? AND title = ?",
+                (int(author["id"]), config.script_demo_title()),
+            ).fetchone()
+            if demo is None:
+                demo_id = create_place(
+                    int(author["id"]),
+                    config.script_demo_title(),
+                    "Livello dimostrativo M3: porta con Touched, piattaforma rotante, lava e teletrasporto.",
+                    demo_text,
+                    visibility="public",
+                )
+                summary["created_script_demo"] = True
+            else:
+                demo_id = int(demo["id"])
+                if int(demo["current_version"]) <= 0:
+                    publish_version(demo_id, demo_text)
+            summary["script_demo_place_id"] = demo_id
+            if summary.get("created_script_demo"):
+                print(f"[seed] creata place \"{config.script_demo_title()}\" (id {demo_id})")
     return summary

@@ -2,15 +2,18 @@
 
 > Documento di handoff per l'implementazione.
 > Data: 28 ottobre 2026.
-> Prima fase da implementare nella nuova chat: **M0 — Piattaforma minima**.
+> Prossima fase da implementare: **M4 — Scoperta**.
 >
-> **Stato (28 ottobre 2026): M0, M1 e M2 completati e verificati.** M0: server HTTP+WS+SQLite,
+> **Stato (28 ottobre 2026): M0, M1, M2 e M3 completati e verificati.** M0: server HTTP+WS+SQLite,
 > sito, client web, relay per place. M1: ownership, versioni, pubblicazione (API + pulsante
 > Pubblica nell'editor), thumbnail, profilo autore, contatori live aggiornati. M2: RobloxWeb
 > Studio desktop (start screen, login/offline, place browser, publish, thumbnail), preset
 > Linux/Windows con feature `studio`, binari e zip in `build/studio/`, download sul sito,
-> editor rimosso dal web. Test Python/Godot/browser e smoke test del binario Linux verdi.
-> Prossima milestone: **M3 — Lua sandbox**.
+> editor rimosso dal web. M3: VM Lua sandboxata (lexer/parser/compiler/bytecode/VM), stdlib,
+> API Roblox-like (`workspace`, `Instance.new`, `Touched`, Humanoid, `task.*`), scheduler con
+> budget, formato livello v2 con `scripts[]`, pannelli Script/Output e simulazione in Studio,
+> place demo **Demo script** seedata. Test Python/Godot e prova nel browser verdi.
+> Prossima milestone: **M4 — Scoperta**.
 >
 > Questo piano sostituisce la direzione precedente ("level select + editor dentro la build web").
 > L'obiettivo è il flusso classico Roblox: **sito → login/ospite → catalogo esperienze → Play →
@@ -443,15 +446,15 @@ deploy online.
 
 ### 6.4 M3 — Lua sandbox
 
-- Moduli: `lua_lexer.gd`, `lua_parser.gd`, `lua_compiler.gd`, `lua_vm.gd`, `lua_table.gd`,
+- [x] Moduli: `lua_lexer.gd`, `lua_parser.gd`, `lua_compiler.gd`, `lua_vm.gd`, `lua_table.gd`,
   `lua_values.gd`, `lua_stdlib.gd`, `lua_roblox_api.gd`, `lua_scheduler.gd`, `lua_errors.gd`.
-- Pipeline: sorgente → lexer → parser → bytecode → VM.
-- Valori: nil, bool, number (float), string, table, function, userdata.
-- Closure/upvalue, chiamate, `if/while/repeat/for`, `break/return`, operatori Lua.
-- Niente `goto`, niente metatable, niente coroutine generali nella v1.
-- Standard library: `math`, `string`, `table`, `tostring`, `tonumber`, `type`, `pairs`, `ipairs`,
+- [x] Pipeline: sorgente → lexer → parser → bytecode → VM.
+- [x] Valori: nil, bool, number (float), string, table, function, userdata.
+- [x] Closure/upvalue, chiamate, `if/while/repeat/for`, `break/return`, operatori Lua.
+- [x] Niente `goto`, niente metatable, niente coroutine generali nella v1.
+- [x] Standard library: `math`, `string`, `table`, `tostring`, `tonumber`, `type`, `pairs`, `ipairs`,
   `pcall`, `error`, `assert`.
-- API Roblox-like:
+- [x] API Roblox-like:
   - `print`, `warn`, `task.wait/spawn/delay` (+ alias `wait/spawn/delay`);
   - `workspace`, `game:GetService("Workspace")`;
   - `Instance.new("Part")`;
@@ -461,13 +464,18 @@ deploy online.
   - `script.Parent`, `script.Name`;
   - wrapper player/character per `Touched` (`Name`, `Health`, `TakeDamage`,
     `FindFirstChild("Humanoid")`).
-- Limiti: 64 KB/script, 200 script, 2–4 ms/frame totali, call depth e istanze capped.
-- Sandbox: nessun accesso a `OS`, `FileAccess`, `Engine`, `ClassDB`, rete, filesystem.
-- Errori con nome script/riga; output in Studio; console nel client.
-- Formato livello v2 con `scripts[]` (`id`, `name`, `parent_id`, `enabled`, `source`).
-- Editor Studio: pannello Script (lista, crea/attacca, CodeEdit), pannello Output, run/test.
-- Script demo: porta con `Touched`, piattaforma rotante, kill brick, teleporter.
-- Test: unit VM, escape test, integrazione, script pubblicato e giocato nel browser.
+- [x] Limiti: 64 KB/script, 200 script, 2–4 ms/frame totali, call depth e istanze capped.
+- [x] Sandbox: nessun accesso a `OS`, `FileAccess`, `Engine`, `ClassDB`, rete, filesystem.
+- [x] Errori con nome script/riga; output in Studio; console nel client.
+- [x] Formato livello v2 con `scripts[]` (`id`, `name`, `parent_id`, `enabled`, `source`).
+- [x] Editor Studio: pannello Script (lista, crea/attacca, CodeEdit), pannello Output, run/test.
+- [x] Script demo: porta con `Touched`, piattaforma rotante, kill brick, teleporter.
+- [x] Test: unit VM, escape test, integrazione, script pubblicato e giocato nel browser.
+- [x] `lua_values.gd`/`lua_function.gd`/`lua_builtin.gd`/`lua_prototype.gd` aggiunti per
+  valori, closure, builtin e prototipi; `levels/scripts_demo.rwl.json` seedato come
+  **Demo script**.
+- [x] Editor: **Simula** avvia/ferma il runtime; **Testa** esegue gli script in `main.tscn`.
+- [x] Server: validazione dei campi `scripts[]` e rifiuto di script in v1.
 
 ### 6.5 M4 — Scoperta
 
@@ -726,7 +734,8 @@ source → lexer → parser → compiler → bytecode → VM
 - `LevelData.VERSION = 2`; accettare v1 con `scripts: []`.
 - Validazione: id script unici, `parent_id` esistente (o vuoto = workspace), `enabled` bool,
   sorgente entro 64 KB, max 200 script.
-- `LevelBuilder` costruisce le parti e poi avvia gli script abilitati.
+- `LevelBuilder` costruisce le parti e ritorna la mappa `id → nodo`; `LuaRuntime`
+  (creato da `main.gd` e dall'editor) avvia gli script abilitati.
 - `LevelIO.serialize_world` e l'editor devono preservare `scripts`.
 - L'editor crea/rimuove script e li associa alla parte selezionata.
 
@@ -791,7 +800,7 @@ server → client:
 ### Godot headless
 
 - `tools/test_gameplay.gd` aggiornato.
-- `tools/test_level_io.gd` e `tools/test_editor.gd` ancora verdi.
+- `tools/test_editor.gd` e `tools/test_level_io.gd` ancora verdi.
 - `tools/test_lua.gd` (M3): lexer/parser/VM, numeri, stringhe, tabelle, closure, errori,
   limiti, escape test.
 - Test bootstrap place: con un server di test locale, il client carica il livello e spawna.
@@ -845,6 +854,8 @@ flatpak run org.godotengine.Godot --headless \
   --path Godot/robloxwebengine --script res://tools/test_gameplay.gd
 # con il server attivo:
 #   res://tools/test_publish.gd, res://tools/test_studio.gd
+# nessun server richiesto:
+#   res://tools/test_lua.gd (M3)
 ```
 
 ### Test Python

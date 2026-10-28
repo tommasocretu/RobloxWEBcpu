@@ -39,6 +39,14 @@ func _run() -> void:
 
 	var level := LevelIO.load_default()
 	level["meta"] = {"title": _title, "author": "", "description": "Pubblicato dal test"}
+	level["version"] = 2
+	level["scripts"] = [{
+		"id": "s1",
+		"name": "PortaScript",
+		"parent_id": str(level["parts"][0].get("id", "")),
+		"enabled": true,
+		"source": "script.Parent.Touched:Connect(function(hit)\n\tprint(hit.Name)\nend)\n",
+	}]
 	_check(LevelData.validate(level).is_empty(), "livello di partenza valido")
 
 	# Creazione della place.
@@ -80,6 +88,12 @@ func _run() -> void:
 	_check(
 		typeof(loaded[3]) == TYPE_DICTIONARY and str(loaded[3].get("meta", {}).get("title", "")) == _title + " v2",
 		"il livello scaricato è la versione 2"
+	)
+	_check(
+		typeof(loaded[3]) == TYPE_DICTIONARY
+			and loaded[3].get("scripts", []).size() == 1
+			and str(loaded[3]["scripts"][0].get("name", "")) == "PortaScript",
+		"gli script sopravvivono alla pubblicazione"
 	)
 
 	# La pagina esperienza pubblica vede autore e versione.

@@ -49,6 +49,35 @@ func _run() -> void:
 	)
 	_check(LevelData.validate(serialized).is_empty(), "dati serializzati validi")
 
+	# Script (M3): creazione, modifica, simulazione.
+	_editor._build_script_window()
+	_editor.select_entity(id)
+	_editor._new_script()
+	_check(_editor.data["scripts"].size() == 1, "script creato")
+	var script_data: Dictionary = _editor.data["scripts"][0]
+	_check(str(script_data.get("parent_id", "")) == id, "script attaccato alla parte selezionata")
+	_editor._script_source.text = "local p = script.Parent\np.Color = Color3.fromRGB(0, 255, 0)\n"
+	_editor._apply_script_edits()
+	_check(str(script_data.get("source", "")).contains("Color3"), "sorgente script applicato")
+	_check(LevelData.validate(_editor.data).is_empty(), "livello con script valido")
+	_editor._build_output_window()
+	_editor._on_lua_output("[Test] output di prova", 0)
+	_editor._refresh_output_text()
+	_check(_editor._output_text.get_parsed_text().contains("output di prova"), "pannello Output")
+	_editor.simulate = true
+	_editor._rebuild()
+	await process_frame
+	for frame in 10:
+		await process_frame
+	var scripted_node: Node3D = _editor._find_node(id)
+	var scripted_mesh := scripted_node.get_node_or_null("Mesh") as MeshInstance3D
+	_check(scripted_mesh != null\
+		and (scripted_mesh.material_override as StandardMaterial3D).albedo_color.g > 0.9,
+		"simulazione esegue lo script")
+	_editor.simulate = false
+	_editor._rebuild()
+	_check(_editor._lua_runtime == null, "simulazione ferma gli script")
+
 	# Salvataggio e ricaricamento.
 	_check(LevelIO.save_to_path(TEST_PATH, _editor.data) == OK, "salvataggio file")
 	var loaded := LevelIO.load_from_path(TEST_PATH)

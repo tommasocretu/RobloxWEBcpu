@@ -28,7 +28,7 @@ func _run() -> void:
 	var world := Node3D.new()
 	root.add_child(world)
 	LevelBuilder.build_into(world, default_data)
-	var rebuilt := LevelIO.serialize_world(world)
+	var rebuilt := LevelIO.serialize_world(world, default_data.get("scripts", []))
 	rebuilt["meta"] = default_data["meta"]
 	rebuilt = LevelIO.from_json(LevelIO.to_json(rebuilt))
 	var json_a := LevelIO.to_json(default_data)
@@ -59,6 +59,19 @@ func _run() -> void:
 	bad["format"] = "altro"
 	_check(LevelData.validate(bad).size() > 0, "rifiuta formato sconosciuto")
 	_check(LevelData.validate("non un oggetto").size() > 0, "rifiuta JSON non oggetto")
+
+	# v1 retrocompatibile e script.
+	var old := LevelData.new_level()
+	old["version"] = 1
+	old["scripts"] = []
+	_check(LevelData.validate(old).is_empty(), "accetta v1 senza script")
+	old["scripts"] = [{"id": "s1", "name": "Vecchio", "parent_id": "",
+		"enabled": true, "source": "print('x')"}]
+	_check(not LevelData.validate(old).is_empty(), "rifiuta script in v1")
+	var with_script := LevelData.new_level()
+	with_script["scripts"] = [{"id": "s1", "name": "Nuovo", "parent_id": "p1",
+		"enabled": true, "source": "print('x')"}]
+	_check(LevelData.validate(with_script).is_empty(), "accetta script v2")
 
 	print("TEST_LEVEL_IO_%s" % ("OK" if _failures == 0 else "FAIL"))
 	quit(0 if _failures == 0 else 1)

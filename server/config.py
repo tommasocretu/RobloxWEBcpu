@@ -20,6 +20,7 @@ WS_PORT = int(os.environ.get("ROBLOXWEB_WS_PORT", "9081"))
 DATA_DIR = Path(os.environ.get("ROBLOXWEB_DATA_DIR", str(SERVER_DIR / "data")))
 WEB_ROOT = ROOT_DIR / "WEBhtml"
 DEFAULT_LEVEL_PATH = ROOT_DIR / "Godot" / "robloxwebengine" / "levels" / "default.rwl.json"
+SCRIPT_DEMO_LEVEL_PATH = ROOT_DIR / "Godot" / "robloxwebengine" / "levels" / "scripts_demo.rwl.json"
 
 # Override esplicito per il deploy (es. wss://dominio/ws). Vuoto = derivato dalla richiesta.
 WS_PUBLIC_URL = os.environ.get("ROBLOXWEB_WS_URL", "")
@@ -45,6 +46,7 @@ DEMO_PASSWORD = "demo1234"
 AUTHOR_USERNAME = "RobloxWeb"
 
 _SEED_PLACE_TITLE = "Welcome Obby"
+_SCRIPT_DEMO_TITLE = "Demo script"
 
 _secret_cache: bytes | None = None
 
@@ -117,3 +119,7 @@ def secret_key() -> bytes:
 
 def seed_place_title() -> str:
     return _SEED_PLACE_TITLE
+
+
+def script_demo_title() -> str:
+    return _SCRIPT_DEMO_TITLE

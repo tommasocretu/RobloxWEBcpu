@@ -15,18 +15,22 @@ const COIN_COLOR := Color(0.98, 0.82, 0.22)
 const LAVA_EMISSION := Color(0.9, 0.25, 0.05)
 
 
-static func build_into(world: Node3D, data: Dictionary) -> void:
+static func build_into(world: Node3D, data: Dictionary) -> Dictionary:
+	## Costruisce il mondo e ritorna la mappa `id entità → nodo` (serve agli script).
 	for child in world.get_children():
 		world.remove_child(child)
 		child.queue_free()
 	world.add_child(build_environment())
 	world.add_child(build_sun())
+	var nodes_by_id := {}
 	for entity in data.get("parts", []):
 		if typeof(entity) != TYPE_DICTIONARY:
 			continue
 		var node := build_entity(entity)
 		if node:
 			world.add_child(node)
+			nodes_by_id[str(entity.get("id", ""))] = node
+	return nodes_by_id
 
 
 static func build_environment() -> WorldEnvironment:

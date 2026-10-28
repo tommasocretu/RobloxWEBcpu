@@ -43,6 +43,7 @@ var _boot_layer: CanvasLayer
 var _boot_title: Label
 var _boot_detail: Label
 var _leave_layer: CanvasLayer
+var _lua_runtime: LuaRuntime
 
 
 func _ready() -> void:
@@ -95,13 +96,31 @@ func start_level(incoming: Dictionary) -> bool:
 	if incoming.is_empty() or not LevelData.validate(incoming).is_empty():
 		return false
 	level_data = incoming
-	LevelBuilder.build_into(world, level_data)
+	var nodes_by_id := LevelBuilder.build_into(world, level_data)
 	goal_reached = false
 	coins_total = 0
 	coins_collected = 0
 	respawn_position = Vector3(0, 5, 12)
 	hud.set_coins(0, 0)
+	_start_lua(nodes_by_id)
 	return true
+
+
+func _start_lua(nodes_by_id: Dictionary) -> void:
+	if _lua_runtime != null:
+		_lua_runtime.stop()
+		_lua_runtime.queue_free()
+		_lua_runtime = null
+	_lua_runtime = LuaRuntime.new()
+	_lua_runtime.name = "LuaRuntime"
+	_lua_runtime.script_error.connect(_on_script_error)
+	add_child(_lua_runtime)
+	_lua_runtime.start(level_data, world, nodes_by_id, character, net.player_name)
+
+
+func _on_script_error(message: String) -> void:
+	if _game_started and hud.visible:
+		hud.show_message("Script: %s" % message, 5.0)
 
 
 func _process(delta: float) -> void:
@@ -357,7 +376,9 @@ func _find_spawn() -> Node3D:
 func _spawn_character() -> void:
 	var scene := load(CHARACTER_SCENE_PATH) as PackedScene
 	character = scene.instantiate() as PlayerCharacter
-	character.set_character_name(net.player_name if net.player_name != "" else menu.player_name())
+	var display_name := net.player_name if net.player_name != "" else menu.player_name()
+	character.set_character_name(display_name)
+	character.set_meta("lua_name", display_name)
 	character.died.connect(_on_character_died)
 	character.shift_lock_changed.connect(hud.set_crosshair_visible)
 	character.health_changed.connect(hud.set_health)
@@ -365,9 +386,14 @@ func _spawn_character() -> void:
 	character.global_position = respawn_position
 	hud.set_health(character.health)
 	hud.set_crosshair_visible(false)
+	if _lua_runtime != null:
+		_lua_runtime.character = character
+		_lua_runtime.player_name = display_name
 
 
 func _on_character_died() -> void:
+	if _lua_runtime != null:
+		_lua_runtime.character = null
 	character.queue_free()
 	character = null
 	global_sound.stream = SfxFactory.death()

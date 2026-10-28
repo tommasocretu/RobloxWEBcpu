@@ -5,7 +5,7 @@ extends RefCounted
 ## Dati → scena: LevelBuilder. Scena → dati e file: LevelIO.
 
 const FORMAT := "robloxweb-level"
-const VERSION := 1
+const VERSION := 2
 const DEFAULT_TITLE := "Livello senza titolo"
 const KINDS: Array[String] = [
 	"part", "spawn", "checkpoint", "coin", "goal", "kill",
@@ -28,12 +28,16 @@ static var play_request: Dictionary = {}
 
 static func new_level(level_title := "Nuovo livello") -> Dictionary:
 	var parts: Array = []
-	parts.append(make_entity(
+	var baseplate := make_entity(
 		"part", "Baseplate", Vector3(0, -0.5, 0), Vector3(200, 1, 200), Color(0.36, 0.56, 0.32)
-	))
-	parts.append(make_entity(
+	)
+	baseplate["id"] = "p1"
+	parts.append(baseplate)
+	var spawn := make_entity(
 		"spawn", "SpawnLocation", Vector3(0, 0.5, 12), Vector3(10, 1, 10), Color(0.63, 0.64, 0.64)
-	))
+	)
+	spawn["id"] = "p2"
+	parts.append(spawn)
 	return {
 		"format": FORMAT,
 		"version": VERSION,
@@ -81,6 +85,30 @@ static func next_name(parts: Array, base: String) -> String:
 	for entity in parts:
 		if typeof(entity) == TYPE_DICTIONARY:
 			used[str(entity.get("name", ""))] = true
+	if not used.has(base):
+		return base
+	var index := 2
+	while used.has("%s%d" % [base, index]):
+		index += 1
+	return "%s%d" % [base, index]
+
+
+static func next_script_id(scripts: Array) -> String:
+	var max_id := 0
+	for script in scripts:
+		if typeof(script) != TYPE_DICTIONARY:
+			continue
+		var id := str(script.get("id", ""))
+		if id.begins_with("s") and id.substr(1).is_valid_int():
+			max_id = maxi(max_id, id.substr(1).to_int())
+	return "s%d" % (max_id + 1)
+
+
+static func next_script_name(scripts: Array, base := "Script") -> String:
+	var used := {}
+	for script in scripts:
+		if typeof(script) == TYPE_DICTIONARY:
+			used[str(script.get("name", ""))] = true
 	if not used.has(base):
 		return base
 	var index := 2
@@ -187,7 +215,7 @@ static func validate(data: Variant) -> PackedStringArray:
 			continue
 		_validate_entity(entity, i, names, ids, errors)
 
-	_validate_scripts(dict.get("scripts", []), errors)
+	_validate_scripts(dict.get("scripts", []), ids, version, errors)
 	return errors
 
 
@@ -268,23 +296,45 @@ static func _validate_entity(
 				errors.append("%s: props.pixel_size deve essere > 0." % prefix)
 
 
-static func _validate_scripts(value, errors: PackedStringArray) -> void:
+static func _validate_scripts(
+	value, part_ids: Dictionary, version: int, errors: PackedStringArray
+) -> void:
 	if typeof(value) != TYPE_ARRAY:
 		errors.append("Campo \"scripts\" non valido.")
 		return
 	var scripts: Array = value
 	if scripts.size() > MAX_SCRIPTS:
 		errors.append("Troppi script: %d (massimo %d)." % [scripts.size(), MAX_SCRIPTS])
+	if version < 2 and not scripts.is_empty():
+		errors.append("Gli script richiedono la versione 2 del formato.")
+		return
+	var script_ids := {}
 	for i in scripts.size():
 		var script = scripts[i]
 		if typeof(script) != TYPE_DICTIONARY:
 			errors.append("Script #%d: non è un oggetto." % i)
 			continue
+		var prefix := "Script #%d" % i
+		var script_id := str(script.get("id", "")).strip_edges()
+		if script_id == "":
+			errors.append("%s: id mancante." % prefix)
+		elif script_ids.has(script_id):
+			errors.append("%s: id duplicato \"%s\"." % [prefix, script_id])
+		else:
+			script_ids[script_id] = true
+		var script_name := str(script.get("name", "")).strip_edges()
+		if script_name == "":
+			errors.append("%s: nome mancante." % prefix)
+		elif script_name.length() > MAX_NAME_LENGTH:
+			errors.append("%s: nome troppo lungo (max %d)." % [prefix, MAX_NAME_LENGTH])
+		var parent_id := str(script.get("parent_id", ""))
+		if parent_id != "" and not part_ids.has(parent_id):
+			errors.append("%s: parent_id \"%s\" non esiste." % [prefix, parent_id])
+		if typeof(script.get("enabled", true)) != TYPE_BOOL:
+			errors.append("%s: \"enabled\" deve essere true/false." % prefix)
 		var source := str(script.get("source", ""))
 		if source.to_utf8_buffer().size() > MAX_SCRIPT_BYTES:
-			errors.append("Script #%d: sorgente troppo lungo (max %d byte)." % [i, MAX_SCRIPT_BYTES])
-		if str(script.get("name", "")).strip_edges() == "":
-			errors.append("Script #%d: nome mancante." % i)
+			errors.append("%s: sorgente troppo lungo (max %d byte)." % [prefix, MAX_SCRIPT_BYTES])
 
 
 static func _is_number(value) -> bool:

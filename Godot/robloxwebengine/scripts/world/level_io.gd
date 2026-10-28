@@ -55,11 +55,13 @@ static func load_default() -> Dictionary:
 
 # --- Scena → dati ----------------------------------------------------------------
 
-static func serialize_world(world: Node3D) -> Dictionary:
+static func serialize_world(world: Node3D, scripts: Array = []) -> Dictionary:
 	var parts: Array = []
 	var index := 0
 	for child in world.get_children():
 		if child is WorldEnvironment or child is DirectionalLight3D:
+			continue
+		if child.has_meta("lua_runtime_instance"):
 			continue
 		var entity := serialize_entity(child)
 		if entity.is_empty():
@@ -72,7 +74,7 @@ static func serialize_world(world: Node3D) -> Dictionary:
 		"version": LevelData.VERSION,
 		"meta": {},
 		"parts": parts,
-		"scripts": [],
+		"scripts": scripts.duplicate(true),
 	}
 
 
