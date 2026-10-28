@@ -1,3 +1,154 @@
+/* --- Font self-hosted: Source Sans 3 (OFL) ------------------------------ */
+
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("fonts/source-sans-3/SourceSans3-Light.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/source-sans-3/SourceSans3-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/source-sans-3/SourceSans3-Semibold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/source-sans-3/SourceSans3-Bold.woff2") format("woff2");
+}
+
+/* --- Design token 2014 (fonte canonica: docs/roblox-2014/tokens.md) ------ */
+
+:root {
+  /* Colori */
+  --rw-color-header: #114081;
+  --rw-color-header-divider: #7394c1;
+  --rw-color-nav-text: #ffffff;
+  --rw-color-nav-hover: rgba(255, 255, 255, 0.14);
+  --rw-color-or: #9ec3e7;
+  --rw-color-on-dark: #ffffff;
+  --rw-color-footer: #123f83;
+  --rw-color-canvas: #ffffff;
+  --rw-color-text: #343434;
+  --rw-color-text-secondary: #666666;
+  --rw-color-text-muted: #767676;
+  --rw-color-text-disabled: #a7a7a7;
+  --rw-color-text-footer: #c7cfdd;
+  --rw-color-text-footer-legal: #afc0d8;
+  --rw-color-link: #0055b3;
+  --rw-color-link-hover: #0055b3;
+  --rw-color-link-secondary: #095fb5;
+  --rw-color-border: #cccccc;
+  --rw-color-border-input: #a7a7a7;
+  --rw-color-border-strong: #777777;
+  --rw-color-border-table: #9e9e9e;
+  --rw-color-surface-subtle: #f1f1f1;
+  --rw-color-surface-tab: #d6d6d6;
+  --rw-color-surface-tab-hover: #e9e9e9;
+  --rw-color-surface-box: #e1e1e1;
+  --rw-color-primary: #007001;
+  --rw-color-primary-hover: #005a01;
+  --rw-color-primary-disabled: #99c699;
+  --rw-color-neutral: #0852b7;
+  --rw-color-neutral-hover: #06408f;
+  --rw-color-neutral-disabled: #9cbae2;
+  --rw-color-negative: #565656;
+  --rw-color-negative-hover: #404040;
+  --rw-color-negative-disabled: #bbbcbb;
+  --rw-color-danger: #cc0000;
+  --rw-color-danger-bg: #fae5e5;
+  --rw-color-success: #007001;
+  --rw-color-warning: #aa6611;
+  --rw-color-info-bg: #e5effa;
+  --rw-color-info-border: #0066cc;
+  --rw-color-selection: #00a1da;
+  --rw-color-focus: #00a1da;
+  --rw-color-robux: #006600;
+  --rw-color-tix: #aa6611;
+  --rw-color-gold: #ffd700;
+  --rw-color-loading-bar: #d2d400;
+  --rw-color-loading-track: #8c8c8c;
+  --rw-color-loading-text: #e6e6e6;
+  --rw-color-overlay: rgba(0, 0, 0, 0.45);
+
+  /* Accenti di prodotto e media */
+  --rw-color-like: #0055b3;
+  --rw-color-like-icon: #ffd700;
+  --rw-color-live: #007001;
+  --rw-color-hidden: #aa6611;
+  --rw-color-thumb-border: #d2d2d2;
+  --rw-color-placeholder-ground: #3f8f3f;
+  --rw-color-placeholder-studs: rgba(255, 255, 255, 0.22);
+  --rw-color-avatar-bg: #eeeeee;
+  --rw-color-avatar-skin: #f5cd30;
+  --rw-color-avatar-skin-dark: #b38f00;
+  --rw-color-avatar-fallback: #9e9e9e;
+  --rw-color-hero-art-border: rgba(255, 255, 255, 0.5);
+
+  /* Tipografia */
+  --rw-font-sans: "Source Sans 3", "Source Sans Pro", "Segoe UI", Arial, sans-serif;
+  --rw-font-size-body: 14px;
+  --rw-line-height-body: 1.428;
+  --rw-font-size-small: 12px;
+  --rw-font-size-tiny: 11px;
+  --rw-font-size-h1: 32px;
+  --rw-font-size-h2: 30px;
+  --rw-font-size-h3: 15px;
+  --rw-font-size-nav: 15px;
+  --rw-font-size-button-small: 14px;
+  --rw-font-size-button-medium: 20px;
+  --rw-font-size-button-large: 23px;
+  --rw-font-size-modal: 27px;
+  --rw-font-size-footer: 13px;
+  --rw-font-size-legal: 12px;
+
+  /* Spazi, bordi, raggi */
+  --rw-content: 970px;
+  --rw-content-wide: 1180px;
+  --rw-page-pad-y: 5px;
+  --rw-page-pad-x: 25px;
+  --rw-header-height: 36px;
+  --rw-footer-pad: 20px;
+  --rw-space-1: 5px;
+  --rw-space-2: 7px;
+  --rw-space-3: 10px;
+  --rw-space-4: 15px;
+  --rw-space-5: 20px;
+  --rw-space-6: 25px;
+  --rw-space-7: 30px;
+  --rw-card-width: 202px;
+  --rw-card-thumb-width: 192px;
+  --rw-card-thumb-height: 108px;
+  --rw-sidebar-width: 300px;
+  --rw-radius: 0;
+  --rw-radius-tooltip: 3px;
+  --rw-shadow: none;
+  --rw-border-width: 1px;
+
+  /* Stati, motion, z-index */
+  --rw-state-hover: brightness(0.92);
+  --rw-state-focus: 2px solid var(--rw-color-focus);
+  --rw-state-disabled: var(--rw-color-text-disabled);
+  --rw-motion-fast: 120ms ease;
+  --rw-motion-reduced: 0.01ms;
+  --rw-z-header: 30;
+  --rw-z-dropdown: 40;
+  --rw-z-modal: 100;
+  --rw-z-toast: 110;
+}
+
 :root {
   --bg: #0a0e16;
   --bg-soft: #101725;
