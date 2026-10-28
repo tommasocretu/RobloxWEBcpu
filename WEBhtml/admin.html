@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="admin">
 <header class="site-header" id="site-header"></header>
 <main class="container">
   <a class="back-link" href="/">← Torna alla home</a>
@@ -23,7 +23,7 @@
     <section class="admin-box">
       <div class="section-head">
         <h2>Segnalazioni aperte <span class="badge badge-unlisted" id="open-count">0</span></h2>
-        <span class="muted small">Ignora oppure nascondi l'esperienza</span>
+        <span class="muted small">Ignora oppure nascondi il gioco</span>
       </div>
       <div class="admin-list" id="reports">
         <div class="empty">Caricamento…</div>
@@ -31,8 +31,8 @@
     </section>
     <section class="admin-box">
       <div class="section-head">
-        <h2>Esperienze nascoste <span class="badge badge-private" id="hidden-count">0</span></h2>
-        <span class="muted small">Non compaiono nel catalogo pubblico</span>
+        <h2>Giochi nascosti <span class="badge badge-private" id="hidden-count">0</span></h2>
+        <span class="muted small">Non compaiono nell'elenco pubblico</span>
       </div>
       <div class="admin-list" id="hidden-list">
         <div class="empty">Caricamento…</div>
@@ -40,7 +40,7 @@
     </section>
   </div>
 </main>
-<footer class="site-footer">RobloxWeb — strumenti di moderazione riservati agli amministratori.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
 <script>
 (async function () {
@@ -80,7 +80,7 @@
             </div>
           </div>
           <div class="admin-actions">
-            <button class="btn btn-small btn-ghost" type="button" data-resolve="${report.id}" data-action="dismiss">Ignora</button>
+            <button class="btn btn-small btn-control" type="button" data-resolve="${report.id}" data-action="dismiss">Ignora</button>
             <button class="btn btn-small btn-danger" type="button" data-resolve="${report.id}" data-action="hide" ${report.place_hidden ? "disabled" : ""}>Nascondi</button>
           </div>
         </div>
@@ -101,7 +101,7 @@
             </div>
           </div>
           <div class="admin-actions">
-            <button class="btn btn-small" type="button" data-restore="${place.id}">Ripristina</button>
+            <button class="btn btn-small btn-primary" type="button" data-restore="${place.id}">Ripristina</button>
           </div>
         </div>
       </article>`;
@@ -143,7 +143,7 @@
       : '<div class="empty">Nessuna segnalazione aperta.</div>';
     hiddenBox.innerHTML = (hidden.data.places || []).length
       ? hidden.data.places.map(hiddenItem).join("")
-      : '<div class="empty">Nessuna esperienza nascosta.</div>';
+      : '<div class="empty">Nessun gioco nascosto.</div>';
     bindReports();
     bindHidden();
   }
@@ -151,7 +151,7 @@
   async function resolveReport(button) {
     const reportId = button.dataset.resolve;
     const action = button.dataset.action;
-    if (action === "hide" && !confirm("Nascondere questa esperienza dal catalogo pubblico?")) {
+    if (action === "hide" && !confirm("Nascondere questo gioco dall'elenco pubblico?")) {
       return;
     }
     button.disabled = true;
@@ -167,7 +167,7 @@
     await load();
     RW.setAlert(
       alertBox,
-      action === "hide" ? "Esperienza nascosta." : "Segnalazione ignorata.",
+      action === "hide" ? "Gioco nascosto." : "Segnalazione ignorata.",
       "info"
     );
   }
@@ -185,7 +185,7 @@
       return;
     }
     await load();
-    RW.setAlert(alertBox, "Esperienza ripristinata.", "info");
+    RW.setAlert(alertBox, "Gioco ripristinato.", "info");
   }
 
   await load();

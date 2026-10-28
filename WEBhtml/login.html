@@ -10,18 +10,18 @@
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="login">
 <header class="site-header" id="site-header"></header>
 <main class="container">
   <div class="auth-wrap">
     <div class="auth-card">
       <div class="auth-tabs" role="tablist">
-        <button type="button" class="active" data-tab="login" role="tab">Accedi</button>
-        <button type="button" data-tab="register" role="tab">Registrati</button>
+        <button type="button" class="active" data-tab="login" role="tab" aria-selected="true">Accedi</button>
+        <button type="button" data-tab="register" role="tab" aria-selected="false">Registrati</button>
       </div>
 
       <h1 id="auth-title">Bentornato!</h1>
-      <p class="sub" id="auth-sub">Accedi per giocare, mettere like e pubblicare le tue esperienze.</p>
+      <p class="sub" id="auth-sub">Accedi per giocare, aggiungere ai preferiti e pubblicare i tuoi giochi.</p>
       <div class="alert" id="auth-alert" hidden></div>
 
       <form id="login-form" autocomplete="on">
@@ -33,7 +33,7 @@
           <label for="login-password">Password</label>
           <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="200" required>
         </div>
-        <button class="btn btn-primary btn-block btn-big" type="submit" id="login-submit">Accedi</button>
+        <button class="btn btn-neutral btn-medium btn-block" type="submit" id="login-submit">Accedi</button>
       </form>
 
       <form id="register-form" autocomplete="on" hidden>
@@ -49,18 +49,18 @@
           <label for="register-password2">Ripeti la password</label>
           <input id="register-password2" name="password2" type="password" autocomplete="new-password" minlength="6" maxlength="200" required>
         </div>
-        <button class="btn btn-primary btn-block btn-big" type="submit" id="register-submit">Crea account</button>
+        <button class="btn btn-primary btn-medium btn-block" type="submit" id="register-submit">Crea account</button>
       </form>
 
       <div class="divider">oppure</div>
-      <button class="btn btn-block" type="button" id="guest-button">Continua come ospite</button>
-      <p class="small muted" style="margin:14px 0 0">
-        Gli ospiti possono giocare ma non mettere like, segnalare, chattare o pubblicare. Accesso demo: <code>demo</code> / <code>demo1234</code>.
+      <button class="btn btn-negative btn-medium btn-block" type="button" id="guest-button">Gioca come ospite</button>
+      <p class="small muted" style="margin:12px 0 0">
+        Gli ospiti possono giocare ma non aggiungere ai preferiti, segnalare, chattare o pubblicare. Accesso demo: <code>demo</code> / <code>demo1234</code>.
       </p>
     </div>
   </div>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
 <script>
 (async function () {
@@ -76,11 +76,15 @@
     const isLogin = name === "login";
     loginForm.hidden = !isLogin;
     registerForm.hidden = isLogin;
-    tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
+    tabs.forEach((tab) => {
+      const selected = tab.dataset.tab === name;
+      tab.classList.toggle("active", selected);
+      tab.setAttribute("aria-selected", selected ? "true" : "false");
+    });
     title.textContent = isLogin ? "Bentornato!" : "Crea il tuo account";
     sub.textContent = isLogin
-      ? "Accedi per giocare, mettere like e pubblicare le tue esperienze."
-      : "Registrati per pubblicare esperienze con RobloxWeb Studio.";
+      ? "Accedi per giocare, aggiungere ai preferiti e pubblicare i tuoi giochi."
+      : "Registrati per pubblicare giochi con RobloxWeb Studio.";
     RW.setAlert(alertBox, "", "error");
     (isLogin ? document.getElementById("login-username") : document.getElementById("register-username")).focus();
   }

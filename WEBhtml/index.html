@@ -4,41 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<title>RobloxWeb — Esperienze</title>
+<title>Giochi — RobloxWeb</title>
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="home">
 <header class="site-header" id="site-header"></header>
 <main class="container">
   <section class="hero">
     <div>
-      <h1>Scopri e gioca esperienze create dalla community.</h1>
+      <h1>Scopri e gioca giochi creati dalla community.</h1>
       <p>Obby, parkour e mondi costruiti con RobloxWeb Studio. Entra come ospite o accedi per ritrovare il tuo profilo.</p>
       <div class="hero-actions" id="hero-actions">
-        <a class="btn btn-primary btn-big" href="/login.html">Accedi o registrati</a>
-        <a class="btn btn-big" href="#esperienze">Sfoglia esperienze</a>
+        <a class="btn btn-primary btn-medium btn-play" href="/login.html">Accedi o registrati</a>
+        <a class="btn btn-neutral btn-medium" href="#giochi">Sfoglia i giochi</a>
       </div>
     </div>
   </section>
 
-  <section id="esperienze">
+  <section id="giochi">
     <div class="section-head">
       <h2 id="section-title">Popolari</h2>
-      <div class="main-nav" id="sort-nav">
-        <a href="#" data-sort="popular">Popolari</a>
+      <div class="tabs" id="sort-nav" aria-label="Ordina i giochi">
+        <a href="#" data-sort="popular" class="active" aria-current="page">Popolari</a>
         <a href="#" data-sort="likes">Più apprezzati</a>
         <a href="#" data-sort="recent">Recenti</a>
       </div>
     </div>
     <div class="alert" id="home-alert" hidden></div>
     <div class="card-grid" id="places-grid"></div>
-    <div class="empty" id="places-empty" hidden>Nessuna esperienza trovata.</div>
+    <div class="empty" id="places-empty" hidden>Nessun gioco trovato.</div>
   </section>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti. Progetto locale in sviluppo.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
 <script>
 (async function () {
@@ -57,18 +57,30 @@
   const user = await RW.me();
   if (user) {
     document.getElementById("hero-actions").innerHTML =
-      '<a class="btn btn-primary btn-big" href="/profile.html">Ciao, ' + RW.escape(user.name) + '</a>' +
-      '<a class="btn btn-big" href="#esperienze">Sfoglia esperienze</a>';
+      '<a class="btn btn-primary btn-medium" href="/profile.html">Il tuo profilo</a>' +
+      '<a class="btn btn-neutral btn-medium" href="#giochi">Sfoglia i giochi</a>';
   } else {
     document.getElementById("hero-actions").innerHTML =
-      '<a class="btn btn-primary btn-big" href="/login.html">Accedi o registrati</a>' +
-      '<button class="btn btn-big" id="hero-guest" type="button">Continua come ospite</button>';
+      '<a class="btn btn-primary btn-medium btn-play" href="/login.html">Accedi o registrati</a>' +
+      '<button class="btn btn-neutral btn-medium" id="hero-guest" type="button">Gioca come ospite</button>';
     document.getElementById("hero-guest").addEventListener("click", async (event) => {
       event.currentTarget.disabled = true;
       const result = await RW.startGuest("/");
       if (!result.ok) {
         event.currentTarget.disabled = false;
         RW.setAlert(alertBox, result.error, "error");
+      }
+    });
+  }
+
+  function renderSort() {
+    document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
+      const active = link.dataset.sort === sort;
+      link.classList.toggle("active", active);
+      if (active) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
       }
     });
   }
@@ -89,12 +101,9 @@
     grid.innerHTML = items.map(RW.card).join("");
     empty.hidden = items.length > 0;
     if (!query) {
-      title.textContent = SORT_LABELS[sort] || "Esperienze";
+      title.textContent = SORT_LABELS[sort] || "Giochi";
     }
-    document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
-      link.style.color = link.dataset.sort === sort ? "#fff" : "";
-      link.style.fontWeight = link.dataset.sort === sort ? "700" : "";
-    });
+    renderSort();
   }
 
   document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {

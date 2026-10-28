@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body class="play-page">
+<body class="play-page" data-page="play">
 <header class="play-bar">
   <a class="btn btn-ghost" id="leave-button" href="/">← Torna al sito</a>
   <div class="play-title" id="play-title">Caricamento…</div>
@@ -24,7 +24,7 @@
 <div class="play-overlay" id="play-overlay">
   <div class="play-card">
     <div class="spinner" id="play-spinner"></div>
-    <h1 id="overlay-title">Preparazione dell'esperienza…</h1>
+    <h1 id="overlay-title">Preparazione del gioco…</h1>
     <p class="muted" id="overlay-message">Verifica della sessione e caricamento del client.</p>
     <p><a class="btn" href="/" id="overlay-back">Torna al sito</a></p>
   </div>
@@ -44,13 +44,13 @@
   function fail(message) {
     spinner.hidden = true;
     overlay.classList.remove("hidden");
-    overlayTitle.textContent = "Impossibile avviare l'esperienza";
+    overlayTitle.textContent = "Impossibile avviare il gioco";
     overlayMessage.textContent = message;
     overlayBack.hidden = false;
   }
 
   if (!id || !/^\d+$/.test(id)) {
-    fail("Esperienza non valida. Apri una pagina esperienza dal catalogo.");
+    fail("Gioco non valido. Apri un gioco dall'elenco.");
     return;
   }
 
@@ -68,7 +68,7 @@
   if (!detail.ok) {
     fail(
       detail.status === 403
-        ? "Questa esperienza non è disponibile (privata o nascosta dalla moderazione)."
+        ? "Questo gioco non è disponibile (privato o nascosto dalla moderazione)."
         : detail.error
     );
     return;

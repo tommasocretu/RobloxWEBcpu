@@ -10,28 +10,28 @@
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="studio">
 <header class="site-header" id="site-header"></header>
 <main class="container">
   <section class="studio-hero">
     <div>
       <h1>RobloxWeb Studio</h1>
       <p>
-        L'editor desktop per costruire le tue esperienze: piazza parti, usa gli strumenti
+        L'editor desktop per costruire i tuoi giochi: piazza parti, usa gli strumenti
         dell'editor, premi <strong>Testa</strong> per provare il livello e
-        <strong>Pubblica</strong> per creare una nuova esperienza o una nuova versione sul
+        <strong>Pubblica</strong> per creare un nuovo gioco o una nuova versione sul
         server.
       </p>
       <div class="play-row">
-        <a class="btn btn-primary" href="/downloads/RobloxWebStudio-windows.zip" download>
-          Download Windows (.zip)
+        <a class="btn btn-primary btn-large" href="/downloads/RobloxWebStudio-windows.zip" download>
+          Scarica per Windows
         </a>
-        <a class="btn btn-primary" href="/downloads/RobloxWebStudio-linux.zip" download>
-          Download Linux (.zip)
+        <a class="btn btn-primary btn-large" href="/downloads/RobloxWebStudio-linux.zip" download>
+          Scarica per Linux
         </a>
       </div>
       <p class="small muted" style="margin-top:14px">
-        Windows e Linux x86_64. Se il download restituisce 404, i binari non sono ancora
+        Windows e Linux x86_64 · zip. Se il download restituisce 404, i binari non sono ancora
         stati compilati: dalla root del repository esegui <code>./build_studio.sh</code>.
       </p>
       <p class="small muted">
@@ -52,17 +52,17 @@
             <strong>Testa</strong> per giocare la versione corrente.</li>
         <li>Premi <strong>Pubblica</strong>, scegli titolo, descrizione e visibilità.</li>
         <li>La thumbnail viene catturata dalla vista corrente dell'editor.</li>
-        <li>La pagina esperienza mostra subito la nuova versione.</li>
+        <li>La pagina del gioco mostra subito la nuova versione.</li>
       </ul>
       <h2>Server locale</h2>
       <p class="small muted" style="margin:0 0 14px">
         <code>python3 server/run.py</code><br>
         URL predefinito in Studio: <code>http://127.0.0.1:9080</code>.
       </p>
-      <a class="btn btn-block" href="/">Torna al catalogo</a>
+      <a class="btn btn-neutral btn-medium btn-block" href="/#giochi">Torna ai giochi</a>
     </aside>
   </section>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 </body>
 </html>

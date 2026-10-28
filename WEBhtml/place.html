@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<title>Esperienza — RobloxWeb</title>
+<title>Gioco — RobloxWeb</title>
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="place">
 <header class="site-header" id="site-header"></header>
 <main class="container">
   <a class="back-link" href="/">← Torna alla home</a>
@@ -23,20 +23,22 @@
         <div class="place-author" id="place-author"></div>
         <div class="place-stats" id="place-stats"></div>
         <div class="play-row">
-          <a class="btn btn-primary btn-big" id="play-button" href="#">▶ Gioca</a>
-          <button class="btn like-button" id="like-button" type="button" aria-pressed="false">♡ <span id="like-button-count">0</span></button>
-          <button class="btn btn-ghost" id="report-button" type="button">Segnala</button>
+          <a class="btn btn-primary btn-medium btn-play" id="play-button" href="#">Gioca</a>
+          <button class="btn btn-control like-button" id="like-button" type="button" aria-pressed="false">
+            <span class="star" aria-hidden="true">★</span> <span id="like-button-count">0</span> preferiti
+          </button>
+          <button class="btn btn-control" id="report-button" type="button">Segnala</button>
         </div>
         <p class="place-description" id="place-description"></p>
       </aside>
     </div>
   </div>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
 <dialog class="edit-dialog" id="report-dialog">
   <form id="report-form">
-    <h2>Segnala esperienza</h2>
+    <h2>Segnala gioco</h2>
     <p class="small muted">La segnalazione viene registrata per la moderazione.</p>
     <div class="alert" id="report-alert" hidden></div>
     <div class="field">
@@ -53,7 +55,7 @@
       <textarea id="report-details" maxlength="500" rows="3"></textarea>
     </div>
     <div class="dialog-actions">
-      <button class="btn btn-ghost" type="button" id="report-cancel">Annulla</button>
+      <button class="btn btn-negative" type="button" id="report-cancel">Annulla</button>
       <button class="btn btn-primary" type="submit" id="report-send">Invia segnalazione</button>
     </div>
   </form>
@@ -72,47 +74,54 @@
   const next = encodeURIComponent(window.location.pathname + window.location.search);
 
   if (!id || !/^\d+$/.test(id)) {
-    RW.setAlert(alertBox, "Esperienza non valida. Torna alla home e scegline una.", "error");
+    RW.setAlert(alertBox, "Gioco non valido. Torna alla home e scegline uno.", "error");
     return;
   }
 
   const result = await RW.api("/api/places/" + encodeURIComponent(id));
   if (!result.ok) {
     const message = result.status === 404
-      ? "Esperienza non trovata."
+      ? "Gioco non trovato."
       : result.status === 403
-        ? "Questa esperienza non è disponibile (privata o nascosta dalla moderazione)."
+        ? "Questo gioco non è disponibile (privato o nascosto dalla moderazione)."
         : result.error;
     RW.setAlert(alertBox, message, "error");
     return;
   }
 
   const place = result.data.place;
-  const me = await RW.me();
+  const [me, authorResult] = await Promise.all([
+    RW.me(),
+    RW.api("/api/users/" + encodeURIComponent(place.owner_id)),
+  ]);
+  const authorUser = authorResult.ok && authorResult.data
+    ? authorResult.data.user
+    : { id: place.owner_id, name: place.author };
   let liked = Boolean(place.liked);
   let likes = Number(place.likes || 0);
   const playButton = document.getElementById("play-button");
 
   document.title = place.title + " — RobloxWeb";
-  document.getElementById("place-media").innerHTML = RW.thumbHTML(place);
+  document.getElementById("place-media").innerHTML = RW.thumbHTML(place, "detail");
   document.getElementById("place-title").textContent = place.title;
   document.getElementById("place-author").innerHTML =
-    'di <a href="/profile.html?user=' + encodeURIComponent(place.owner_id) + '">' +
-    '<strong>' + RW.escape(place.author) + '</strong></a>';
+    RW.avatarHTML(authorUser, 48, true) +
+    '<span>di <a href="/profile.html?user=' + encodeURIComponent(place.owner_id) + '">' +
+    '<strong>' + RW.escape(place.author) + '</strong></a></span>';
   document.getElementById("place-stats").innerHTML =
-    '<div><strong id="stat-visits">' + RW.formatNumber(place.visits) + '</strong>visite</div>' +
-    '<div><strong id="stat-likes">' + RW.formatNumber(likes) + '</strong>like</div>' +
-    '<div><strong id="stat-live">' + RW.formatNumber(place.live_players) + '</strong>online ora</div>' +
-    '<div><strong>v' + RW.formatNumber(place.current_version) + '</strong>versione</div>' +
-    '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>aggiornata</div>';
+    '<div><strong id="stat-visits">' + RW.formatNumber(place.visits) + '</strong>Visite</div>' +
+    '<div><strong id="stat-likes">' + RW.formatNumber(likes) + '</strong>Preferiti</div>' +
+    '<div><strong id="stat-live">' + RW.formatNumber(place.live_players) + '</strong>Giocano ora</div>' +
+    '<div><strong>v' + RW.formatNumber(place.current_version) + '</strong>Versione</div>' +
+    '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>Aggiornata</div>';
   document.getElementById("play-button").href = "/play.html?id=" + encodeURIComponent(place.id);
   if (place.hidden) {
     const isAdmin = Boolean(me && me.is_admin);
     RW.setAlert(
       alertBox,
-      "Questa esperienza è nascosta dalla moderazione." +
+      "Questo gioco è nascosto dalla moderazione." +
         (place.hidden_reason ? " Motivo: " + place.hidden_reason : "") +
-        (isAdmin ? " Puoi ancora aprirla come amministratore." : ""),
+        (isAdmin ? " Puoi ancora aprirlo come amministratore." : ""),
       "warn"
     );
     if (!isAdmin) {
@@ -136,8 +145,8 @@
     likeButton.classList.toggle("liked", liked);
     likeButton.setAttribute("aria-pressed", liked ? "true" : "false");
     likeButton.innerHTML =
-      (liked ? "♥" : "♡") +
-      ' <span id="like-button-count">' + RW.formatNumber(likes) + "</span>";
+      '<span class="star" aria-hidden="true">★</span> ' +
+      '<span id="like-button-count">' + RW.formatNumber(likes) + "</span> preferiti";
     const stat = document.getElementById("stat-likes");
     if (stat) stat.textContent = RW.formatNumber(likes);
   }
@@ -155,7 +164,7 @@
     if (me.is_guest) {
       RW.setAlert(
         alertBox,
-        "Gli ospiti non possono mettere like. Registrati per continuare.",
+        "Gli ospiti non possono aggiungere ai preferiti. Registrati per continuare.",
         "warn"
       );
       return;
