@@ -23,7 +23,7 @@
         <a class="btn btn-neutral btn-medium" href="/studio.html">Crea</a>
       </div>
     </div>
-    <a class="hero-art" id="hero-art" href="/games.html" aria-label="In evidenza" hidden>
+    <a class="hero-art" id="hero-art" href="/games.html" hidden>
       <div class="hero-art-media" id="hero-art-media" aria-hidden="true"></div>
       <span class="hero-badge">In evidenza · <span id="hero-art-title"></span></span>
     </a>
@@ -85,7 +85,6 @@
     }
     heroArt.hidden = false;
     heroArt.href = "/place.html?id=" + encodeURIComponent(place.id);
-    heroArt.setAttribute("aria-label", "In evidenza: " + place.title);
     heroMedia.innerHTML = RW.thumbHTML(place, "hero");
     heroTitle.textContent = place.title;
   }

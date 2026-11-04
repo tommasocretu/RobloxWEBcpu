@@ -127,6 +127,7 @@ Convenzione: prefisso `Rw`, PascalCase, base `Label`/`Button`/`LineEdit`/`RichTe
 | `RwLabelPlayerCoinsHead` | Label | Liberation Sans Bold | 11 | bianco, outline 1 | header `Monete` |
 | `RwLabelPlayerName` | Label | Liberation Sans Regular | 14 | bianco, outline 2 | righe player list |
 | `RwLabelPlayerNameLocal` | Label | Liberation Sans Bold | 14 | bianco, outline 2 | riga locale |
+| `RwLabelPlayerCollapsed` | Label | Liberation Sans Bold | 12 | bianco, outline 1 | barra player list chiusa |
 | `RwLabelPlayerCoins` | Label | Liberation Sans Bold | 14 | oro `GOLD`, outline 2 | colonna Monete |
 | `RwLabelMenuTitle` | Label | Liberation Sans Bold | 36 | bianco, outline 2 | `Menu di gioco`, Leave, Reset |
 | `RwLabelMenuSmall` | Label | Liberation Sans Regular | 18 | bianco, outline 2 | sottotesto Reset |
