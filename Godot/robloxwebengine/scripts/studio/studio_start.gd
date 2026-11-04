@@ -26,6 +26,7 @@ var _quit_button: Button
 
 
 func _ready() -> void:
+	RwLayout.use_editor(get_window())
 	DisplayServer.window_set_title("RobloxWeb Studio")
 	_publish_client = PublishClient.new()
 	_publish_client.name = "PublishClient"

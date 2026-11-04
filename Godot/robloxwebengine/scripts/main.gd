@@ -46,6 +46,13 @@ var _leave_layer: CanvasLayer
 var _lua_runtime: LuaRuntime
 
 
+func _enter_tree() -> void:
+	if _studio_mode() and LevelData.play_request.is_empty():
+		RwLayout.use_editor(get_window())
+	else:
+		RwLayout.use_client(get_window())
+
+
 func _ready() -> void:
 	print("ROBLOXWEBENGINE_READY")
 	menu.play_pressed.connect(_on_play_pressed)

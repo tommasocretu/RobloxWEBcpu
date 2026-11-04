@@ -148,6 +148,7 @@ var _output_lines: Array = []
 
 
 func _ready() -> void:
+	RwLayout.use_editor(get_window())
 	_file_io = LevelFileIO.new()
 	add_child(_file_io)
 	_publish_client = PublishClient.new()
