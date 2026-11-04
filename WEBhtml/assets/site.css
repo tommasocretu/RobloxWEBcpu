@@ -194,6 +194,18 @@ p a,
 
 img { max-width: 100%; }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 button,
 input,
 select,
@@ -717,7 +729,7 @@ body[data-page="home"] .container {
   text-align: center;
 }
 
-/* --- Home / hero (struttura attuale, pelle 2014) ------------------------- */
+/* --- Home ---------------------------------------------------------------- */
 
 .hero {
   display: flex;
@@ -729,6 +741,10 @@ body[data-page="home"] .container {
   background: var(--rw-color-header);
   border: 1px solid #0b2f5e;
   color: var(--rw-color-on-dark);
+}
+.hero-copy {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .hero h1 {
   max-width: 660px;
@@ -749,6 +765,43 @@ body[data-page="home"] .container {
   gap: 8px;
   margin-top: 18px;
 }
+
+.hero-art {
+  position: relative;
+  display: block;
+  width: 430px;
+  height: 230px;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--rw-color-hero-art-border);
+  text-decoration: none;
+}
+.hero-art:hover { text-decoration: none; }
+.hero-art-media,
+.hero-art-media .card-thumb {
+  width: 100%;
+  height: 100%;
+}
+.hero-art .card-thumb { border: 0; }
+
+.hero-badge {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 4;
+  max-width: calc(100% - 20px);
+  padding: 3px 7px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--rw-color-on-dark);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-more { margin-top: 15px; }
 
 /* --- Card e media -------------------------------------------------------- */
 
@@ -919,6 +972,151 @@ body[data-page="home"] .card .card-thumb {
   background-size: 12px 12px, 100% 100%, 100% 100%;
 }
 .thumb-mini .thumb-initial { font-size: 18px; }
+
+/* --- Giochi: catalogo 970 + sidebar 300 ----------------------------------- */
+
+.games-title { margin: 10px 0 12px; }
+
+.games-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 15px;
+}
+.games-filters > label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.games-filters select {
+  height: 24px;
+  padding: 1px 5px;
+  background: var(--rw-color-canvas);
+  border: 1px solid var(--rw-color-border-input);
+  border-radius: 0;
+}
+.games-search {
+  display: flex;
+  align-items: center;
+  width: 250px;
+  max-width: 100%;
+  margin-left: auto;
+}
+.games-search input {
+  width: 100%;
+  height: 21px;
+  padding: 1px 26px 1px 5px;
+  background: var(--rw-color-canvas);
+  border: 1px solid #bbbbbb;
+  border-radius: 0;
+}
+.games-search-submit {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-left: -24px;
+  padding: 4px;
+  background: transparent;
+  border: 0;
+  color: var(--rw-color-text-secondary);
+}
+.games-search-submit:hover { color: var(--rw-color-text); }
+
+.games-layout {
+  display: grid;
+  grid-template-columns: 610px var(--rw-sidebar-width);
+  gap: 10px;
+  align-items: start;
+}
+.games-layout.no-sidebar { grid-template-columns: minmax(0, 610px); }
+.games-main { min-width: 0; }
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 202px);
+  column-gap: 2px;
+  row-gap: 12px;
+}
+
+.games-sidebar { width: var(--rw-sidebar-width); }
+.sidebar-section { margin: 0 0 18px; }
+.sidebar-section h2 {
+  margin: 0 0 7px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.sidebar-featured {
+  display: block;
+  color: inherit;
+}
+.sidebar-featured:hover { text-decoration: none; }
+.sidebar-featured .card-thumb { margin-bottom: 6px; }
+.sidebar-featured-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.sidebar-featured:hover .sidebar-featured-title { text-decoration: underline; }
+.sidebar-featured-meta {
+  display: block;
+  margin-top: 1px;
+  color: var(--rw-color-text-secondary);
+  font-size: 12px;
+  line-height: 15px;
+}
+.sidebar-featured .btn { margin-top: 7px; }
+
+.sidebar-popular-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rw-color-border);
+  color: inherit;
+}
+.sidebar-popular-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.sidebar-popular-row:hover { text-decoration: none; }
+.sidebar-popular-row:hover .sidebar-popular-title { text-decoration: underline; }
+.sidebar-popular-text {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-popular-title {
+  display: block;
+  overflow: hidden;
+  color: var(--rw-color-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-popular-meta {
+  display: block;
+  color: var(--rw-color-text-secondary);
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.sidebar-create {
+  padding: 10px;
+  background: var(--rw-color-canvas);
+  border: 1px solid var(--rw-color-border);
+}
+.sidebar-create p {
+  margin: 0 0 10px;
+  color: var(--rw-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
 
 /* --- Avatar blocky ------------------------------------------------------- */
 
@@ -1336,6 +1534,26 @@ dialog::backdrop { background: var(--rw-color-overlay); }
 
 /* --- Responsive: degrado dignitoso --------------------------------------- */
 
+/* Il catalogo passa a due colonne un po' prima dei 1000 px: a 1000 px con la
+   barra di scorrimento la colonna 610+300 non entrerebbe nella pagina. */
+@media (max-width: 1024.98px) {
+  .games-layout {
+    grid-template-columns: minmax(0, 1fr) var(--rw-sidebar-width);
+    gap: 15px;
+  }
+  .games-layout.no-sidebar { grid-template-columns: 1fr; }
+  .games-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+  }
+  .games-grid .card { padding-right: 0; }
+  .games-grid .card-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
 @media (max-width: 999.98px) {
   .site-header .header-inner,
   body[data-page="home"] .site-header .header-inner,
@@ -1349,7 +1567,7 @@ dialog::backdrop { background: var(--rw-color-overlay); }
 
   .container,
   body[data-page="home"] .container {
-    width: auto;
+    width: 100%;
     max-width: none;
     padding: 14px 16px 40px;
   }
@@ -1376,6 +1594,12 @@ dialog::backdrop { background: var(--rw-color-overlay); }
   .admin-columns { grid-template-columns: 1fr; }
   .studio-hero { grid-template-columns: 1fr; }
   .hero { display: block; padding: 20px; }
+  .hero-art {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    margin-top: 18px;
+  }
 }
 
 @media (max-width: 699.98px) {
@@ -1387,6 +1611,27 @@ dialog::backdrop { background: var(--rw-color-overlay); }
 
   .card-grid,
   body[data-page="home"] .card-grid { grid-template-columns: 1fr; }
+
+  .games-filters > label { width: 100%; }
+  .games-search {
+    width: auto;
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .games-layout,
+  .games-layout.no-sidebar {
+    grid-template-columns: 1fr;
+  }
+  .games-grid { grid-template-columns: 1fr; }
+  .games-sidebar {
+    width: auto;
+    margin-top: 5px;
+  }
+  .sidebar-featured .thumb-sidebar {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 300 / 160;
+  }
 
   .play-bar { gap: 10px; padding: 0 10px; }
   .play-bar .play-author,

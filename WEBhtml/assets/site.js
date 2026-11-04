@@ -5,7 +5,7 @@
   const RW = {};
   const FOOTER_YEAR = 2026;
   const AVATAR_FALLBACK = "#9e9e9e";
-  const GAMES_URL = "/#giochi";
+  const GAMES_URL = "/games.html";
 
   // Otto coppie cielo/prato del 2014 (docs/roblox-2014/media-rules.md §4.2).
   const PALETTES = [

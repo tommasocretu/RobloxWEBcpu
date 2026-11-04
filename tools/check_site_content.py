@@ -25,6 +25,7 @@ FONT_DIR = ASSETS / "fonts" / "source-sans-3"
 
 PAGES = [
     "index.html",
+    "games.html",
     "place.html",
     "play.html",
     "login.html",
@@ -32,7 +33,6 @@ PAGES = [
     "admin.html",
     "studio.html",
 ]
-FUTURE_PAGES = ["games.html"]
 
 FONT_FILES = {
     300: "SourceSans3-Light.woff2",
@@ -144,9 +144,9 @@ def check_pages(errors: list[str]) -> None:
         print(f"  - {name}: ok")
 
     existing = {path.name for path in WEB.glob("*.html")}
-    for name in FUTURE_PAGES:
-        if name not in existing:
-            print(f"  - {name}: prevista, non ancora creata (PR 3)")
+    for name in sorted(existing):
+        if name not in PAGES:
+            errors.append(f"{name}: pagina non inventariata in check_site_content.py")
 
 
 def check_tokens(css_text: str, errors: list[str]) -> None:
