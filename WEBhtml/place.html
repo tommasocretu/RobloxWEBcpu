@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <title>Gioco — RobloxWeb</title>
+<meta name="description" content="Dettagli, statistiche e preferiti di un gioco pubblicato su RobloxWeb.">
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
@@ -13,30 +14,51 @@
 <body data-page="place">
 <header class="site-header" id="site-header"></header>
 <main class="container">
-  <a class="back-link" href="/">← Torna alla home</a>
+  <a class="back-link" href="/games.html">← Torna ai giochi</a>
   <div class="alert" id="place-alert" hidden></div>
+  <div class="empty" id="place-loading">Caricamento…</div>
+
+  <section class="place-error" id="place-error" hidden>
+    <h1 id="place-error-title">Gioco non trovato</h1>
+    <p id="place-error-message">Il gioco che cerchi non esiste o non è disponibile.</p>
+    <a class="btn btn-neutral btn-medium" href="/games.html">Torna ai giochi</a>
+  </section>
+
   <div id="place-content" hidden>
+    <header class="place-head">
+      <h1 id="place-title"></h1>
+      <div class="place-author" id="place-author"></div>
+    </header>
+
     <div class="place-layout">
-      <div class="place-media" id="place-media"></div>
-      <aside class="place-info">
-        <h1 id="place-title"></h1>
-        <div class="place-author" id="place-author"></div>
-        <div class="place-stats" id="place-stats"></div>
-        <div class="play-row">
-          <a class="btn btn-primary btn-medium btn-play" id="play-button" href="#">Gioca</a>
-          <button class="btn btn-control like-button" id="like-button" type="button" aria-pressed="false">
-            <span class="star" aria-hidden="true">★</span> <span id="like-button-count">0</span> preferiti
-          </button>
-          <button class="btn btn-control" id="report-button" type="button">Segnala</button>
-        </div>
+      <section class="place-main">
+        <div id="place-media"></div>
         <p class="place-description" id="place-description"></p>
+        <p class="place-updated small muted" id="place-updated"></p>
+      </section>
+
+      <aside class="place-actions" aria-label="Azioni e statistiche">
+        <a class="btn btn-primary btn-medium place-play" id="play-button" href="#">Gioca</a>
+        <button class="btn btn-control like-button" id="like-button" type="button" aria-pressed="false">
+          <span class="star" aria-hidden="true">★</span> <span id="like-button-count">0</span> preferiti
+        </button>
+        <button class="link-button" id="report-button" type="button">Segnala</button>
+        <dl class="place-stats-box" id="place-stats"></dl>
+        <div class="place-guest" id="place-guest" hidden>
+          <h2>Accedi per giocare</h2>
+          <p>Salva i tuoi progressi e ritrova i giochi che ti piacciono.</p>
+          <a class="btn btn-neutral btn-small" id="guest-login" href="/login.html">Accedi</a>
+          <a class="btn btn-primary btn-small" id="guest-register" href="/login.html">Registrati</a>
+          <button class="link-button place-guest-play" id="guest-play" type="button">Gioca come ospite</button>
+        </div>
+        <a class="place-edit" id="place-edit" href="/profile.html" hidden>Modifica</a>
       </aside>
     </div>
   </div>
 </main>
 <footer class="site-footer" id="site-footer"></footer>
 
-<dialog class="edit-dialog" id="report-dialog">
+<dialog class="rw-dialog" id="report-dialog">
   <form id="report-form">
     <h2>Segnala gioco</h2>
     <p class="small muted">La segnalazione viene registrata per la moderazione.</p>
@@ -65,27 +87,52 @@
 (async function () {
   const id = RW.qs("id");
   const alertBox = document.getElementById("place-alert");
+  const loading = document.getElementById("place-loading");
+  const errorBox = document.getElementById("place-error");
+  const errorTitle = document.getElementById("place-error-title");
+  const errorMessage = document.getElementById("place-error-message");
   const content = document.getElementById("place-content");
+  const playButton = document.getElementById("play-button");
   const likeButton = document.getElementById("like-button");
   const reportButton = document.getElementById("report-button");
   const reportDialog = document.getElementById("report-dialog");
   const reportForm = document.getElementById("report-form");
   const reportAlert = document.getElementById("report-alert");
-  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  const guestBox = document.getElementById("place-guest");
+  const guestPlay = document.getElementById("guest-play");
+  const editLink = document.getElementById("place-edit");
+  const playPath = id ? "/play.html?id=" + encodeURIComponent(id) : "/games.html";
+  const loginUrl = "/login.html?next=" + encodeURIComponent(playPath);
+
+  function showError(title, message) {
+    loading.hidden = true;
+    content.hidden = true;
+    errorTitle.textContent = title;
+    errorMessage.textContent = message;
+    errorBox.hidden = false;
+    document.title = title + " — RobloxWeb";
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "—";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  }
 
   if (!id || !/^\d+$/.test(id)) {
-    RW.setAlert(alertBox, "Gioco non valido. Torna alla home e scegline uno.", "error");
+    showError("Gioco non trovato", "Il link non è valido o il gioco non esiste più.");
     return;
   }
 
+  RW.initHeader();
   const result = await RW.api("/api/places/" + encodeURIComponent(id));
   if (!result.ok) {
-    const message = result.status === 404
-      ? "Gioco non trovato."
-      : result.status === 403
-        ? "Questo gioco non è disponibile (privato o nascosto dalla moderazione)."
-        : result.error;
-    RW.setAlert(alertBox, message, "error");
+    if (result.status === 403 || result.status === 404) {
+      showError("Gioco non trovato", "Il gioco che cerchi non esiste o non è disponibile.");
+    } else {
+      showError("Impossibile caricare il gioco", result.error);
+    }
     return;
   }
 
@@ -99,7 +146,6 @@
     : { id: place.owner_id, name: place.author };
   let liked = Boolean(place.liked);
   let likes = Number(place.likes || 0);
-  const playButton = document.getElementById("play-button");
 
   document.title = place.title + " — RobloxWeb";
   document.getElementById("place-media").innerHTML = RW.thumbHTML(place, "detail");
@@ -107,32 +153,8 @@
   document.getElementById("place-author").innerHTML =
     RW.avatarHTML(authorUser, 48, true) +
     '<span>di <a href="/profile.html?user=' + encodeURIComponent(place.owner_id) + '">' +
-    '<strong>' + RW.escape(place.author) + '</strong></a></span>';
-  document.getElementById("place-stats").innerHTML =
-    '<div><strong id="stat-visits">' + RW.formatNumber(place.visits) + '</strong>Visite</div>' +
-    '<div><strong id="stat-likes">' + RW.formatNumber(likes) + '</strong>Preferiti</div>' +
-    '<div><strong id="stat-live">' + RW.formatNumber(place.live_players) + '</strong>Giocano ora</div>' +
-    '<div><strong>v' + RW.formatNumber(place.current_version) + '</strong>Versione</div>' +
-    '<div><strong>' + RW.escape(RW.timeAgo(place.updated_at) || "—") + '</strong>Aggiornata</div>';
-  document.getElementById("play-button").href = "/play.html?id=" + encodeURIComponent(place.id);
-  if (place.hidden) {
-    const isAdmin = Boolean(me && me.is_admin);
-    RW.setAlert(
-      alertBox,
-      "Questo gioco è nascosto dalla moderazione." +
-        (place.hidden_reason ? " Motivo: " + place.hidden_reason : "") +
-        (isAdmin ? " Puoi ancora aprirlo come amministratore." : ""),
-      "warn"
-    );
-    if (!isAdmin) {
-      playButton.removeAttribute("href");
-      playButton.classList.add("disabled");
-      playButton.setAttribute("aria-disabled", "true");
-      playButton.textContent = "Non disponibile";
-    }
-    likeButton.hidden = true;
-    reportButton.hidden = true;
-  }
+    RW.escape(place.author) + "</a></span>";
+
   const description = document.getElementById("place-description");
   if (place.description) {
     description.textContent = place.description;
@@ -140,6 +162,35 @@
     description.textContent = "Nessuna descrizione.";
     description.classList.add("muted");
   }
+  document.getElementById("place-updated").textContent =
+    place.updated_at ? "Aggiornata il " + formatDate(place.updated_at) : "";
+
+  document.getElementById("place-stats").innerHTML =
+    '<div class="place-stat-row"><dt>Visite</dt><dd id="stat-visits">' +
+    RW.formatNumber(place.visits) + "</dd></div>" +
+    '<div class="place-stat-row"><dt>Giocano ora</dt><dd id="stat-live">' +
+    RW.formatNumber(place.live_players) + "</dd></div>" +
+    '<div class="place-stat-row"><dt>Versione</dt><dd>v' +
+    RW.formatNumber(place.current_version) + "</dd></div>" +
+    '<div class="place-stat-row"><dt>Aggiornata</dt><dd id="stat-updated">' +
+    formatDate(place.updated_at) + "</dd></div>";
+
+  playButton.href = me ? playPath : loginUrl;
+  guestBox.hidden = Boolean(me);
+  document.getElementById("guest-login").href = loginUrl;
+  document.getElementById("guest-register").href = loginUrl;
+
+  guestPlay.addEventListener("click", async () => {
+    guestPlay.disabled = true;
+    const result = await RW.startGuest(playPath);
+    if (!result.ok) {
+      guestPlay.disabled = false;
+      RW.setAlert(alertBox, result.error, "error");
+    }
+  });
+
+  const isOwner = Boolean(me && Number(me.id) === Number(place.owner_id));
+  editLink.hidden = !isOwner;
 
   function renderLike() {
     likeButton.classList.toggle("liked", liked);
@@ -147,18 +198,12 @@
     likeButton.innerHTML =
       '<span class="star" aria-hidden="true">★</span> ' +
       '<span id="like-button-count">' + RW.formatNumber(likes) + "</span> preferiti";
-    const stat = document.getElementById("stat-likes");
-    if (stat) stat.textContent = RW.formatNumber(likes);
   }
-
   renderLike();
-  if (me && Number(me.id) === Number(place.owner_id)) {
-    reportButton.hidden = true;
-  }
 
   likeButton.addEventListener("click", async () => {
     if (!me) {
-      window.location.href = "/login.html?next=" + next;
+      window.location.href = loginUrl;
       return;
     }
     if (me.is_guest) {
@@ -185,7 +230,7 @@
 
   reportButton.addEventListener("click", () => {
     if (!me) {
-      window.location.href = "/login.html?next=" + next;
+      window.location.href = loginUrl;
       return;
     }
     if (me.is_guest) {
@@ -198,6 +243,7 @@
     }
     RW.setAlert(reportAlert, "", "error");
     reportDialog.showModal();
+    document.getElementById("report-reason").focus();
   });
   document.getElementById("report-cancel").addEventListener("click", () => reportDialog.close());
 
@@ -222,6 +268,26 @@
     RW.setAlert(alertBox, "Segnalazione inviata. Grazie per il contributo.", "info");
   });
 
+  if (place.hidden) {
+    const isAdmin = Boolean(me && me.is_admin);
+    RW.setAlert(
+      alertBox,
+      "Questo gioco è nascosto dalla moderazione." +
+        (place.hidden_reason ? " Motivo: " + place.hidden_reason : "") +
+        (isAdmin ? " Puoi ancora aprirlo come amministratore." : ""),
+      "warn"
+    );
+    likeButton.hidden = true;
+    reportButton.hidden = true;
+    if (!isAdmin) {
+      playButton.removeAttribute("href");
+      playButton.classList.add("disabled");
+      playButton.setAttribute("aria-disabled", "true");
+      playButton.textContent = "Non disponibile";
+    }
+  }
+
+  loading.hidden = true;
   content.hidden = false;
   await RW.initHeader();
 
@@ -234,11 +300,9 @@
     const live = document.getElementById("stat-live");
     if (visits) visits.textContent = RW.formatNumber(updated.visits);
     if (live) live.textContent = RW.formatNumber(updated.live_players);
-    if (updated.likes !== likes || Boolean(updated.liked) !== liked) {
-      likes = Number(updated.likes || 0);
-      liked = Boolean(updated.liked);
-      renderLike();
-    }
+    likes = Number(updated.likes || 0);
+    liked = Boolean(updated.liked);
+    renderLike();
   }, 10000);
 })();
 </script>
