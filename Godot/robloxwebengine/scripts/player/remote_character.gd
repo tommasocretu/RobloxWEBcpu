@@ -8,6 +8,8 @@ const TURN_LERP_SPEED := 14.0
 const WALK_ANIM_SPEED := 10.0
 const WALK_ANIM_AMPLITUDE := 0.8
 
+var display_name := ""
+
 var _target_position := Vector3.ZERO
 var _target_yaw := 0.0
 var _net_speed := 0.0
@@ -22,7 +24,8 @@ var _walk_amplitude := 0.0
 @onready var limb_right_leg: Node3D = $Visual/LegR
 
 
-func setup(display_name: String, position: Vector3, yaw: float) -> void:
+func setup(player_display_name: String, position: Vector3, yaw: float) -> void:
+	display_name = player_display_name
 	name_tag.text = display_name
 	global_position = position
 	visual.rotation.y = yaw

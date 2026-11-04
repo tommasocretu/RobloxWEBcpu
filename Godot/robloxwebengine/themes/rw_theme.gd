@@ -145,6 +145,8 @@ static func _install_labels(theme: Theme) -> void:
 		RwTokens.UI_TEXT, RwTokens.OUTLINE_TEXT)
 	_label(theme, &"RwLabelPlayerNameLocal", FONT_LEGACY_BOLD, RwTokens.FONT_SIZE_PLAYER_NAME,
 		RwTokens.UI_TEXT, RwTokens.OUTLINE_TEXT)
+	_label(theme, &"RwLabelPlayerCollapsed", FONT_LEGACY_BOLD, 12,
+		RwTokens.UI_TEXT, RwTokens.OUTLINE_SMALL)
 	_label(theme, &"RwLabelPlayerCoins", FONT_LEGACY_BOLD, RwTokens.FONT_SIZE_PLAYER_NAME,
 		RwTokens.GOLD, RwTokens.OUTLINE_TEXT)
 	_label(theme, &"RwLabelMenuTitle", FONT_LEGACY_BOLD, RwTokens.FONT_SIZE_MENU_TITLE,

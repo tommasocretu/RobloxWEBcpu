@@ -60,6 +60,10 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				distance = minf(MAX_DISTANCE, distance + ZOOM_STEP)
 
 
+func set_shift_lock(enabled: bool) -> void:
+	_set_shift_lock(enabled)
+
+
 func _set_shift_lock(enabled: bool) -> void:
 	if shift_lock == enabled:
 		return

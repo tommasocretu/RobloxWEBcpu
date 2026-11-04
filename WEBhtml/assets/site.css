@@ -1552,81 +1552,146 @@ dialog::backdrop { background: var(--rw-color-overlay); }
   line-height: 1.5;
 }
 
-/* --- Play: barra e overlay attuali (ridisegnati nella PR 9) -------------- */
+/* --- Play: barra 36 px, caricamento ed errori 2014 ----------------------- */
 
 .play-page {
   display: block;
   height: 100vh;
   overflow: hidden;
-  background: #05080d;
+  background: #000000;
 }
 .play-bar {
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: center;
-  gap: 16px;
-  height: 48px;
-  padding: 0 16px;
-  color: #e8eefc;
-  background: #0d1420;
-  border-bottom: 1px solid #26334a;
+  gap: 15px;
+  height: var(--rw-header-height);
+  padding: 0 15px;
+  color: var(--rw-color-on-dark);
+  background: var(--rw-color-header);
+  border-bottom: 1px solid var(--rw-color-header-divider);
+  font-size: 14px;
 }
-.play-bar .play-title {
+.play-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 35px;
+  color: var(--rw-color-on-dark);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.play-brand:hover { text-decoration: none; }
+.play-brand .brand-stud {
+  width: 14px;
+  height: 14px;
+  box-shadow: inset 0 0 0 3px var(--rw-color-header);
+}
+.play-title {
   min-width: 0;
+  max-width: 46%;
   overflow: hidden;
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.play-bar .play-author {
-  color: #98a6bd;
+.play-author {
+  overflow: hidden;
+  color: var(--rw-color-or);
   font-size: 13px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.play-bar .btn { flex: 0 0 auto; white-space: nowrap; }
-.play-bar .spacer { flex: 1; }
-.play-bar .small { color: #98a6bd; }
+.play-author a { color: var(--rw-color-or); }
+.play-author a:hover { color: var(--rw-color-on-dark); }
+.play-spacer { flex: 1 1 auto; }
+.play-live {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.play-exit { flex: 0 0 auto; white-space: nowrap; }
 .game-frame {
   display: block;
   width: 100%;
-  height: calc(100vh - 48px);
-  background: #05080d;
+  height: calc(100vh - var(--rw-header-height));
+  background: #000000;
   border: 0;
 }
 .play-overlay {
   position: fixed;
-  inset: 48px 0 0;
+  inset: var(--rw-header-height) 0 0;
   z-index: 10;
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(5, 8, 13, 0.88);
-  transition: opacity 0.25s ease;
+  background: #000000;
+  transition: opacity var(--rw-motion-fast);
 }
 .play-overlay.hidden {
   opacity: 0;
   pointer-events: none;
 }
-.play-card {
+.play-loading { text-align: center; }
+.play-loading-label {
+  color: var(--rw-color-loading-text);
+  font-size: var(--rw-font-size-small);
+  letter-spacing: 2px;
+  line-height: 1.4;
+}
+.play-loading-bar {
+  position: relative;
+  width: 300px;
+  height: 18px;
+  margin: 10px auto 0;
+  overflow: hidden;
+  background: var(--rw-color-loading-track);
+  border: 1px solid var(--rw-color-border-strong);
+}
+.play-loading-bar span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -30%;
+  width: 30%;
+  background: var(--rw-color-loading-bar);
+  animation: play-loading-slide 1.2s linear infinite;
+}
+@keyframes play-loading-slide {
+  from { left: -30%; }
+  to { left: 100%; }
+}
+.play-error {
+  width: 100%;
   max-width: 460px;
-  color: var(--rw-color-on-dark);
-  text-align: center;
+  padding: 20px;
+  color: var(--rw-color-text);
+  background: var(--rw-color-canvas);
+  border: 1px solid var(--rw-color-border);
 }
-.play-card h1 {
-  margin: 0 0 8px;
-  font-size: 24px;
-  letter-spacing: 0;
+.play-error h1 {
+  margin: 0 0 10px;
+  font-size: var(--rw-font-size-modal);
+  font-weight: 700;
+  line-height: 1.2;
 }
-.play-card .muted { color: #98a6bd; }
-.spinner {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto 18px;
-  border: 4px solid rgba(255, 255, 255, 0.15);
-  border-top-color: #2bd576;
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
+.play-error p {
+  margin: 0 0 10px;
+  font-size: var(--rw-font-size-body);
+  line-height: var(--rw-line-height-body);
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.play-error .play-error-detail {
+  color: var(--rw-color-text-secondary);
+  font-size: var(--rw-font-size-small);
+  line-height: 1.4;
+}
+.play-error .btn { margin-top: 5px; }
+.play-error[hidden],
+.play-loading[hidden] { display: none; }
 
 /* --- Responsive: degrado dignitoso --------------------------------------- */
 
@@ -1745,9 +1810,11 @@ dialog::backdrop { background: var(--rw-color-overlay); }
   .studio-download-actions .btn { flex: 1 1 100%; }
 
   .play-bar { gap: 10px; padding: 0 10px; }
+  .play-bar .play-brand,
   .play-bar .play-author,
-  .play-bar #play-player { display: none; }
-  .play-bar .play-title { flex: 1 1 auto; }
+  .play-bar .play-live,
+  .play-bar .play-spacer { display: none; }
+  .play-bar .play-title { flex: 1 1 auto; max-width: none; }
 }
 
 @media (max-width: 479.98px) {
@@ -1766,5 +1833,10 @@ dialog::backdrop { background: var(--rw-color-overlay); }
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+  .play-loading-bar span {
+    left: 30%;
+    width: 40%;
+    animation: none !important;
   }
 }

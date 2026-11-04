@@ -39,6 +39,8 @@ func _run() -> void:
 		RwTokens.FONT_SIZE_PLAYER_NAME, RwTokens.GOLD, RwTokens.OUTLINE_TEXT)
 	_check_variation(theme, &"RwLabelPlayerNameLocal", &"Label", RwTheme.FONT_LEGACY_BOLD,
 		RwTokens.FONT_SIZE_PLAYER_NAME, RwTokens.UI_TEXT, RwTokens.OUTLINE_TEXT)
+	_check_variation(theme, &"RwLabelPlayerCollapsed", &"Label", RwTheme.FONT_LEGACY_BOLD,
+		12, RwTokens.UI_TEXT, RwTokens.OUTLINE_SMALL)
 
 	var menu_normal := theme.get_stylebox(&"normal", &"RwButtonMenu") as StyleBoxFlat
 	_check(menu_normal != null, "RwButtonMenu ha normal StyleBoxFlat")
@@ -78,6 +80,12 @@ func _run() -> void:
 	var banner := theme.get_stylebox(&"panel", &"RwPanelBanner") as StyleBoxFlat
 	_check(banner != null and _color(banner.bg_color, RwTokens.BANNER_BG)
 		and _color(banner.border_color, RwTokens.MENU_DEFAULT), "banner nero con bordo rosso")
+	var shield := theme.get_stylebox(&"panel", &"RwPanelMenuShield") as StyleBoxFlat
+	_check(shield != null and _color(shield.bg_color, RwTokens.MENU_SHIELD),
+		"shield del Game Menu MENU_SHIELD")
+	_check(_color(RwTokens.UI_PANEL, Color("#1E3A78DB")), "UI_PANEL blu notte 0.86")
+	_check(_color(RwTokens.UI_PANEL_DARK, Color("#172A4FE6")), "UI_PANEL_DARK blu notte 0.90")
+	_check(_color(RwTokens.MENU_SHIELD, Color("#33333366")), "MENU_SHIELD grigio 0.40")
 
 	_check(is_equal_approx(RwLayout.scale_for(Vector2(1680, 964)), 1.0), "scala 1680×964 = 1.0")
 	_check(is_equal_approx(RwLayout.scale_for(Vector2(1280, 684)), 0.95), "scala 1280×684 = 0.95")

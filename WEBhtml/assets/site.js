@@ -356,6 +356,26 @@
     return timer;
   };
 
+  // Conteggio live di play.html: 10 s, sospeso in background, nessun alert.
+  RW.pollPlaceLive = function (placeId, onValue, intervalMs) {
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const result = await RW.api("/api/places/" + encodeURIComponent(placeId));
+        if (result.ok && result.data && result.data.place) {
+          onValue(Number(result.data.place.live_players || 0));
+        }
+      } catch (_) {
+        /* il polling non deve rompere la pagina */
+      }
+    };
+    const timer = setInterval(tick, intervalMs || 10000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) tick();
+    });
+    return timer;
+  };
+
   RW.setAlert = function (element, message, kind) {
     if (!element) return;
     const type = kind || "error";

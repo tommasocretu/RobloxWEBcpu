@@ -4,19 +4,19 @@ extends Node
 ## - build desktop Studio (`studio` feature): schermata iniziale di Studio;
 ## - build nativa dev: LevelSelect → LevelBuilder → Menu/Play;
 ## - test play / Studio: avvio diretto con `LevelData.play_request`.
-## Comune: checkpoint/morte/respawn, monete, traguardo, multiplayer.
+## Comune: checkpoint/morte/respawn, monete, traguardo, multiplayer, HUD 2014.
 
 const CHARACTER_SCENE_PATH := "res://scenes/player/character.tscn"
 const REMOTE_CHARACTER_SCENE_PATH := "res://scenes/player/remote_character.tscn"
 const EDITOR_SCENE_PATH := "res://scenes/editor/editor.tscn"
 const STUDIO_SCENE_PATH := "res://scenes/studio/studio_start.tscn"
 const SPAWN_OFFSET := Vector3(0, 5, 0)
-const MESSAGE_TIME := 3.0
 const STATE_SEND_INTERVAL := 1.0 / 15.0
 
 @onready var world: Node3D = $World
 @onready var menu: MainMenu = $Menu
 @onready var hud: GameHUD = $HUD
+@onready var game_menu: GameMenu = $GameMenu
 @onready var level_select: LevelSelect = $LevelSelect
 @onready var global_sound: AudioStreamPlayer = $GlobalSound
 @onready var net: NetClient = $NetClient
@@ -39,10 +39,10 @@ var _place_info: Dictionary = {}
 var _player_info: Dictionary = {}
 var _pending_ws_url := ""
 var _pending_ticket := ""
-var _boot_layer: CanvasLayer
-var _boot_title: Label
-var _boot_detail: Label
-var _leave_layer: CanvasLayer
+var _ready_posted := false
+var _menu_restore_shift_lock := false
+var _chat_restore_shift_lock := false
+var _respawn_shift_lock := false
 var _lua_runtime: LuaRuntime
 
 
@@ -58,7 +58,16 @@ func _ready() -> void:
 	menu.play_pressed.connect(_on_play_pressed)
 	hud.visible = false
 	menu.visible = false
+	game_menu.visible = false
+	hud.set_menu_enabled(false)
+	hud.menu_requested.connect(_open_game_menu)
+	game_menu.leave_requested.connect(_on_game_menu_leave)
+	game_menu.reset_requested.connect(_on_game_menu_reset)
+	game_menu.menu_opened.connect(_on_game_menu_opened)
+	game_menu.menu_closed.connect(_on_game_menu_closed)
 	hud.chat_submitted.connect(_on_chat_submitted)
+	hud.chat_opened.connect(_on_chat_opened)
+	hud.chat_closed.connect(_on_chat_closed)
 	net.connected.connect(_on_net_connected)
 	net.disconnected.connect(_on_net_disconnected)
 	net.connection_failed.connect(_on_net_failed)
@@ -83,11 +92,10 @@ func _ready() -> void:
 	elif _studio_mode():
 		get_tree().call_deferred("change_scene_to_file", STUDIO_SCENE_PATH)
 	elif OS.has_feature("web"):
-		# Client web: nessun LevelSelect/Menu/editor, si carica la place da `?place=`.
+		# Client web: nessun LevelSelect/Menu/editor; l'HTML possiede il caricamento.
 		level_select.visible = false
 		menu.visible = false
 		hud.visible = false
-		_show_boot("Caricamento esperienza…", "Connessione al server e preparazione del mondo.")
 		place_client.start()
 	else:
 		level_select.visible = true
@@ -108,7 +116,10 @@ func start_level(incoming: Dictionary) -> bool:
 	coins_total = 0
 	coins_collected = 0
 	respawn_position = Vector3(0, 5, 12)
-	hud.set_coins(0, 0)
+	_respawn_shift_lock = false
+	hud.clear_chat()
+	hud.set_local_coins(0, 0)
+	_refresh_player_list()
 	_start_lua(nodes_by_id)
 	return true
 
@@ -127,7 +138,7 @@ func _start_lua(nodes_by_id: Dictionary) -> void:
 
 func _on_script_error(message: String) -> void:
 	if _game_started and hud.visible:
-		hud.show_message("Script: %s" % message, 5.0)
+		hud.add_system_line("Script: %s" % message)
 
 
 func _process(delta: float) -> void:
@@ -143,17 +154,20 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _game_started:
 		return
-	if event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode == KEY_ESCAPE and not hud.is_chat_open():
-		if _leave_layer != null and _leave_layer.visible:
-			_hide_leave_menu()
-		elif _place_mode:
-			_show_leave_menu()
-		elif _test_mode:
-			_return_to_editor()
-		else:
-			return
-		get_viewport().set_input_as_handled()
+	if not (event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_ESCAPE):
+		return
+	if hud.is_chat_open():
+		hud.close_chat()
+	elif game_menu.is_open():
+		game_menu.handle_escape()
+	elif _test_mode:
+		_return_to_editor()
+	elif _place_mode:
+		_open_game_menu()
+	else:
+		return
+	get_viewport().set_input_as_handled()
 
 
 func _on_level_chosen(incoming: Dictionary, source: String) -> void:
@@ -179,17 +193,18 @@ func _on_play_pressed() -> void:
 	hud.visible = true
 	if not _place_mode:
 		net.player_name = menu.player_name()
+	hud.set_menu_enabled(_place_mode)
 	_connect_world_nodes()
 	_spawn_character()
+	_refresh_player_list()
 	if _test_mode:
-		hud.show_message("Modalità test — Esc per tornare all'editor", 4.0)
+		hud.add_system_line("Modalità test — Esc per tornare all'editor")
 	elif _place_mode:
-		# Il messaggio di benvenuto lo mostra _on_place_loaded.
 		net.start_with_ticket(_pending_ws_url, _pending_ticket, net.player_name)
+		_post_ready_once()
 	else:
 		# Build nativa di sviluppo: nessun ticket place, si gioca in single player.
-		# Il multiplayer si prova dal sito (client web) o con tools/test_network.gd.
-		hud.show_message("Modalità sviluppo — single player", 3.0)
+		hud.add_system_line("Modalità sviluppo — single player")
 
 
 func _return_to_editor() -> void:
@@ -207,153 +222,49 @@ func _on_place_loaded(
 	_player_info = player
 	_pending_ws_url = ws_url
 	_pending_ticket = ticket
+	_ready_posted = false
 	net.player_name = str(player.get("name", "Giocatore"))
 	if not start_level(level):
 		_on_place_failed("Livello non valido.", "invalid")
 		return
-	_hide_boot()
 	_on_play_pressed()
 	var is_guest := bool(player.get("is_guest", true))
 	hud.set_chat_enabled(not is_guest)
+	hud.add_system_line("Benvenuto, %s!" % net.player_name)
 	if is_guest:
-		hud.show_message(
-			"Benvenuto, %s! Sei un ospite: accedi per chattare." % net.player_name, 5.0
-		)
-	else:
-		hud.show_message("Benvenuto, %s!" % net.player_name, 3.0)
+		hud.add_system_line("Sei un ospite: accedi per chattare.")
 
 
 func _on_place_failed(message: String, code: String) -> void:
 	hud.visible = false
-	var hint := ""
+	hud.set_menu_enabled(false)
+	game_menu.close_menu()
+	place_client.post_error(message, _failure_detail(code))
+
+
+func _failure_detail(code: String) -> String:
 	match code:
 		"no_place":
-			hint = ""
+			return "Apri un gioco dal catalogo."
 		"unauthorized":
-			hint = "Apri l'esperienza dal sito e accedi con un account o come ospite."
+			return "Apri il gioco dal sito e accedi con un account o come ospite."
 		"not_found", "forbidden":
-			hint = "L'esperienza non esiste o non è visibile al tuo account."
+			return "Il gioco non esiste o non è visibile al tuo account."
 		"unavailable":
-			hint = "L'autore non ha ancora pubblicato una versione giocabile."
+			return "L'autore non ha ancora pubblicato una versione giocabile."
 		"network":
-			hint = "Controlla che il server sia attivo: python3 server/run.py"
+			return "Controlla che il server sia attivo: python3 server/run.py"
+		"invalid":
+			return "Il contenuto del gioco non è valido."
 		_:
-			hint = "Riprova più tardi o torna al catalogo."
-	var detail := message
-	if hint != "" and hint != message:
-		detail = "%s\n\n%s" % [message, hint]
-	_show_boot("Impossibile avviare l'esperienza", detail, true)
+			return "Riprova più tardi o torna ai giochi."
 
 
-func _show_boot(title_text: String, detail_text: String, show_leave := false) -> void:
-	if _boot_layer == null:
-		_boot_layer = CanvasLayer.new()
-		_boot_layer.name = "BootOverlay"
-		add_child(_boot_layer)
-		var background := ColorRect.new()
-		background.color = Color(0.035, 0.05, 0.08, 1.0)
-		background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_boot_layer.add_child(background)
-		var center := CenterContainer.new()
-		center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_boot_layer.add_child(center)
-		var box := VBoxContainer.new()
-		box.custom_minimum_size = Vector2(560, 0)
-		box.add_theme_constant_override("separation", 16)
-		center.add_child(box)
-		_boot_title = Label.new()
-		_boot_title.add_theme_font_size_override("font_size", 32)
-		_boot_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_boot_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		box.add_child(_boot_title)
-		_boot_detail = Label.new()
-		_boot_detail.add_theme_font_size_override("font_size", 17)
-		_boot_detail.add_theme_color_override("font_color", Color(0.62, 0.69, 0.8))
-		_boot_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_boot_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		box.add_child(_boot_detail)
-		var leave_button := Button.new()
-		leave_button.name = "LeaveButton"
-		leave_button.text = "Torna al sito"
-		leave_button.custom_minimum_size = Vector2(220, 46)
-		leave_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		leave_button.pressed.connect(place_client.leave)
-		box.add_child(leave_button)
-	_boot_title.text = title_text
-	_boot_detail.text = detail_text
-	var button := _boot_layer.get_node_or_null("CenterContainer/VBoxContainer/LeaveButton") as Button
-	if button == null:
-		button = _find_boot_button()
-	if button:
-		button.visible = show_leave
-	_boot_layer.visible = true
-
-
-func _find_boot_button() -> Button:
-	if _boot_layer == null:
-		return null
-	for node in _boot_layer.get_children():
-		if node is CenterContainer:
-			for child in node.get_children():
-				if child is VBoxContainer:
-					for item in child.get_children():
-						if item is Button:
-							return item
-	return null
-
-
-func _hide_boot() -> void:
-	if _boot_layer:
-		_boot_layer.visible = false
-
-
-func _show_leave_menu() -> void:
-	if _leave_layer == null:
-		_leave_layer = CanvasLayer.new()
-		_leave_layer.name = "LeaveMenu"
-		add_child(_leave_layer)
-		var background := ColorRect.new()
-		background.color = Color(0, 0, 0, 0.65)
-		background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_leave_layer.add_child(background)
-		var center := CenterContainer.new()
-		center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_leave_layer.add_child(center)
-		var panel := PanelContainer.new()
-		center.add_child(panel)
-		var margin := MarginContainer.new()
-		for side in ["left", "right", "top", "bottom"]:
-			margin.add_theme_constant_override("margin_" + side, 26)
-		panel.add_child(margin)
-		var box := VBoxContainer.new()
-		box.custom_minimum_size = Vector2(380, 0)
-		box.add_theme_constant_override("separation", 14)
-		margin.add_child(box)
-		var title := Label.new()
-		title.text = "Lascia l'esperienza?"
-		title.add_theme_font_size_override("font_size", 26)
-		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		box.add_child(title)
-		var leave := Button.new()
-		leave.name = "LeaveButton"
-		leave.text = "Lascia l'esperienza"
-		leave.custom_minimum_size = Vector2(0, 44)
-		leave.pressed.connect(place_client.leave)
-		box.add_child(leave)
-		var resume := Button.new()
-		resume.text = "Continua a giocare"
-		resume.custom_minimum_size = Vector2(0, 44)
-		resume.pressed.connect(_hide_leave_menu)
-		box.add_child(resume)
-	_leave_layer.visible = true
-	var focus_button := _leave_layer.find_child("LeaveButton", true, false) as Button
-	if focus_button:
-		focus_button.grab_focus()
-
-
-func _hide_leave_menu() -> void:
-	if _leave_layer:
-		_leave_layer.visible = false
+func _post_ready_once() -> void:
+	if not _place_mode or _ready_posted or not OS.has_feature("web"):
+		return
+	_ready_posted = true
+	place_client.post_ready()
 
 
 func _connect_world_nodes() -> void:
@@ -367,7 +278,7 @@ func _connect_world_nodes() -> void:
 	for node in get_tree().get_nodes_in_group("collectibles"):
 		coins_total += 1
 		node.collected.connect(_on_collectible_collected)
-	hud.set_coins(coins_collected, coins_total)
+	hud.set_local_coins(coins_collected, coins_total)
 
 	for node in get_tree().get_nodes_in_group("goal"):
 		node.reached.connect(_on_goal_reached)
@@ -383,24 +294,33 @@ func _find_spawn() -> Node3D:
 func _spawn_character() -> void:
 	var scene := load(CHARACTER_SCENE_PATH) as PackedScene
 	character = scene.instantiate() as PlayerCharacter
-	var display_name := net.player_name if net.player_name != "" else menu.player_name()
+	var display_name := _local_player_name()
 	character.set_character_name(display_name)
 	character.set_meta("lua_name", display_name)
 	character.died.connect(_on_character_died)
 	character.shift_lock_changed.connect(hud.set_crosshair_visible)
-	character.health_changed.connect(hud.set_health)
+	character.health_changed.connect(_on_character_health_changed)
 	world.add_child(character)
 	character.global_position = respawn_position
+	character.input_enabled = not game_menu.is_open() and not hud.is_chat_open()
+	if _respawn_shift_lock:
+		character.camera_rig.set_shift_lock(true)
 	hud.set_health(character.health)
-	hud.set_crosshair_visible(false)
+	hud.set_crosshair_visible(_respawn_shift_lock)
 	if _lua_runtime != null:
 		_lua_runtime.character = character
 		_lua_runtime.player_name = display_name
 
 
+func _on_character_health_changed(value: float) -> void:
+	hud.set_health(value)
+
+
 func _on_character_died() -> void:
 	if _lua_runtime != null:
 		_lua_runtime.character = null
+	if character:
+		_respawn_shift_lock = character.shift_lock
 	character.queue_free()
 	character = null
 	global_sound.stream = SfxFactory.death()
@@ -410,14 +330,14 @@ func _on_character_died() -> void:
 
 func _on_checkpoint_activated(spawn_position: Vector3) -> void:
 	respawn_position = spawn_position
-	hud.show_message("Checkpoint raggiunto!", 2.0)
+	hud.add_system_line("Checkpoint raggiunto!")
 
 
 func _on_collectible_collected(_collectible: Collectible) -> void:
 	coins_collected += 1
-	hud.set_coins(coins_collected, coins_total)
+	hud.set_local_coins(coins_collected, coins_total)
 	if coins_collected == coins_total:
-		hud.show_message("Tutte le monete raccolte!", 2.5)
+		hud.add_system_line("Hai raccolto tutte le monete!")
 
 
 func _on_goal_reached() -> void:
@@ -426,27 +346,85 @@ func _on_goal_reached() -> void:
 	goal_reached = true
 	global_sound.stream = SfxFactory.goal()
 	global_sound.play()
-	hud.show_message("TRAGUARDO! Livello completato.", 5.0)
+	hud.show_banner("GIOCO COMPLETATO!", 5.0)
+	hud.add_system_line("Traguardo raggiunto!")
+
+
+# --- Game Menu, Leave e Reset --------------------------------------------------
+
+func _open_game_menu() -> void:
+	if not _place_mode or not _game_started or hud.is_chat_open() or game_menu.is_open():
+		return
+	game_menu.open_menu()
+
+
+func _on_game_menu_opened() -> void:
+	hud.set_menu_open(true)
+	_menu_restore_shift_lock = character != null and character.shift_lock
+	_set_character_input(false)
+	if character and _menu_restore_shift_lock:
+		character.camera_rig.set_shift_lock(false)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _on_game_menu_closed() -> void:
+	hud.set_menu_open(false)
+	_set_character_input(true)
+	if character and _menu_restore_shift_lock:
+		character.camera_rig.set_shift_lock(true)
+	_menu_restore_shift_lock = false
+
+
+func _on_game_menu_leave() -> void:
+	place_client.leave()
+
+
+func _on_game_menu_reset() -> void:
+	if character:
+		character.set_health(0.0)
+
+
+func _on_chat_opened() -> void:
+	_chat_restore_shift_lock = character != null and character.shift_lock
+	_set_character_input(false)
+	if character and _chat_restore_shift_lock:
+		character.camera_rig.set_shift_lock(false)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _on_chat_closed() -> void:
+	if game_menu.is_open():
+		_chat_restore_shift_lock = false
+		return
+	_set_character_input(true)
+	if character and _chat_restore_shift_lock:
+		character.camera_rig.set_shift_lock(true)
+	_chat_restore_shift_lock = false
+
+
+func _set_character_input(enabled: bool) -> void:
+	if character:
+		character.input_enabled = enabled
 
 
 # --- Multiplayer ---------------------------------------------------------------
 
 func _on_net_connected() -> void:
-	hud.show_message("Connesso in multiplayer!", 2.0)
-	hud.set_players(1 + _remote_characters.size())
+	hud.add_system_line("Connesso in multiplayer!")
+	_refresh_player_list()
 
 
 func _on_net_disconnected() -> void:
 	_clear_remote_characters()
-	hud.show_message("Connessione persa: modalità single player.", 3.0)
+	hud.add_system_line("Connessione persa: modalità single player.")
 
 
 func _on_net_failed() -> void:
-	hud.show_message("Server non raggiungibile: modalità single player.", 3.0)
+	hud.add_system_line("Server non raggiungibile: modalità single player.")
 
 
 func _on_net_server_error(code: String, message: String) -> void:
-	hud.show_message(message, 4.0)
+	hud.add_system_line(message)
 	if code in ["rejected", "full"]:
 		net.stop()
 		_clear_remote_characters()
@@ -460,7 +438,7 @@ func _on_peer_joined(id: int, peer_name: String) -> void:
 	world.add_child(remote)
 	remote.setup(peer_name, Vector3(0, 30, 0), 0.0)
 	_remote_characters[id] = remote
-	hud.set_players(1 + _remote_characters.size())
+	_refresh_player_list()
 
 
 func _on_peer_left(id: int) -> void:
@@ -468,7 +446,7 @@ func _on_peer_left(id: int) -> void:
 	if remote:
 		_remote_characters.erase(id)
 		remote.queue_free()
-		hud.set_players(1 + _remote_characters.size())
+		_refresh_player_list()
 
 
 func _on_peer_state(id: int, position: Vector3, yaw: float, speed: float) -> void:
@@ -482,7 +460,7 @@ func _on_chat_submitted(text: String) -> void:
 	if clean == "":
 		return
 	if _place_mode and bool(_player_info.get("is_guest", false)):
-		hud.show_message("Gli ospiti non possono chattare. Accedi per usare la chat.", 3.0)
+		hud.add_system_line("Gli ospiti non possono chattare. Accedi per usare la chat.")
 		return
 	hud.add_chat_line(net.player_name, clean)
 	net.send_chat(clean)
@@ -496,7 +474,22 @@ func _clear_remote_characters() -> void:
 	for remote in _remote_characters.values():
 		remote.queue_free()
 	_remote_characters.clear()
-	hud.set_players(1)
+	_refresh_player_list()
+
+
+func _refresh_player_list() -> void:
+	var names: Array[String] = []
+	for remote in _remote_characters.values():
+		var remote_name := str(remote.display_name)
+		if remote_name != "":
+			names.append(remote_name)
+	hud.set_player_list(_local_player_name(), names)
+
+
+func _local_player_name() -> String:
+	if net.player_name.strip_edges() != "":
+		return net.player_name
+	return menu.player_name() if not _place_mode else "Giocatore"
 
 
 func _notification(what: int) -> void:

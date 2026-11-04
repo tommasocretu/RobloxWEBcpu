@@ -233,7 +233,7 @@ func _build_ui() -> void:
 
 	var publish_button := _add_top_button(publish_box, "Pubblica", _open_server_window)
 	publish_button.name = "PublishButton"
-	_add_top_button(publish_box, "Place…", _open_my_places)
+	_add_top_button(publish_box, "I miei giochi", _open_my_places)
 	_add_top_button(publish_box, "Account", _open_server_window)
 	_add_top_button(publish_box, "Script", _open_script_window)
 	_add_top_button(publish_box, "Output", _open_output_window)
@@ -1051,11 +1051,11 @@ func _update_target_label() -> void:
 	var meta := _meta()
 	var place_id := int(meta.get("place_id", 0))
 	if place_id > 0:
-		_target_label.text = "Aggiornerà l'esperienza #%d (versione %d)." % [
+		_target_label.text = "Aggiornerà il gioco #%d (versione %d)." % [
 			place_id, int(meta.get("published_version", 0))
 		]
 	else:
-		_target_label.text = "Verrà creata una nuova esperienza."
+		_target_label.text = "Verrà creato un nuovo gioco."
 
 
 func _build_server_window() -> void:
@@ -1063,7 +1063,7 @@ func _build_server_window() -> void:
 		return
 	_server_window = Window.new()
 	_server_window.name = "PublishWindow"
-	_server_window.title = "RobloxWeb — Pubblica esperienza"
+	_server_window.title = "RobloxWeb — Pubblica gioco"
 	_server_window.size = Vector2i(620, 700)
 	_server_window.min_size = Vector2i(520, 560)
 	_server_window.visible = false
@@ -1138,7 +1138,7 @@ func _build_server_window() -> void:
 	publish_tab.add_child(_make_field_label("Titolo"))
 	_publish_title_edit = LineEdit.new()
 	_publish_title_edit.max_length = LevelData.MAX_TITLE_LENGTH
-	_publish_title_edit.placeholder_text = "Nome dell'esperienza"
+	_publish_title_edit.placeholder_text = "Nome del gioco"
 	publish_tab.add_child(_publish_title_edit)
 
 	publish_tab.add_child(_make_field_label("Descrizione"))
@@ -1201,9 +1201,9 @@ func _build_server_window() -> void:
 	_publish_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	publish_tab.add_child(_publish_status)
 
-	# --- tab Le mie place ---
+	# --- tab I miei giochi ---
 	var places_tab := VBoxContainer.new()
-	places_tab.name = "Le mie place"
+	places_tab.name = "I miei giochi"
 	places_tab.add_theme_constant_override("separation", 6)
 	_account_tabs.add_child(places_tab)
 
@@ -1378,7 +1378,7 @@ func _on_publish_pressed() -> void:
 			if not bool(thumb[0]):
 				note += "\nThumbnail non caricata: " + str(thumb[1])
 	_set_status_label(_publish_status, note, false)
-	_status.text = "Pubblicata v%d (place #%d)." % [version, new_id]
+	_status.text = "Pubblicato v%d (gioco #%d)." % [version, new_id]
 	_publish_button.disabled = false
 	_refresh_places()
 
@@ -1447,7 +1447,7 @@ func _capture_thumbnail() -> PackedByteArray:
 func _refresh_places() -> void:
 	if _places_list == null or not _publish_client.is_logged_in():
 		return
-	_set_status_label(_places_status, "Caricamento delle tue esperienze…", false)
+	_set_status_label(_places_status, "Caricamento dei tuoi giochi…", false)
 	if not _publish_client.fetch_places():
 		_set_status_label(_places_status, "Richiesta già in corso.", true)
 		return
@@ -1470,8 +1470,8 @@ func _refresh_places() -> void:
 		_places_list.set_item_metadata(index, int(place.get("id", 0)))
 	_set_status_label(
 		_places_status,
-		"Premi due volte una place (o Apri nell'editor) per caricarla." if not items.is_empty()
-		else "Non hai ancora pubblicato esperienze.",
+		"Premi due volte un gioco (o Apri nell'editor) per caricarlo." if not items.is_empty()
+		else "Non hai ancora pubblicato giochi.",
 		false
 	)
 
@@ -1479,7 +1479,7 @@ func _refresh_places() -> void:
 func _on_open_server_place() -> void:
 	var selected := _places_list.get_selected_items()
 	if selected.is_empty():
-		_set_status_label(_places_status, "Seleziona una place dall'elenco.", true)
+		_set_status_label(_places_status, "Seleziona un gioco dall'elenco.", true)
 		return
 	var place_id := int(_places_list.get_item_metadata(selected[0]))
 	_places_open_button.disabled = true

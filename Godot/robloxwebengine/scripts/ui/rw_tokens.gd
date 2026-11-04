@@ -127,8 +127,8 @@ const Z_TOAST := 110
 
 # --- Colori del client ---------------------------------------------------
 
-const UI_PANEL := Color(30, 58, 120, 0.86)
-const UI_PANEL_DARK := Color(23, 42, 79, 0.90)
+const UI_PANEL := Color("#1E3A78DB")
+const UI_PANEL_DARK := Color("#172A4FE6")
 const UI_BORDER := Color("#6E7FA6")
 const UI_TEXT := Color("#FFFFFF")
 const UI_TEXT_SHADOW := Color("#000000")
@@ -140,7 +140,7 @@ const HEALTH_MID := Color("#00AB00")
 const HEALTH_DARK := Color("#004F00")
 const HEALTH_RED := Color("#FF1C00")
 const GOLD := COLOR_GOLD
-const MENU_SHIELD := Color(51, 51, 51, 0.40)
+const MENU_SHIELD := Color("#33333366")
 const MENU_BUTTON_BG := Color("#000000")
 const MENU_BUTTON_BORDER := Color("#808080")
 const MENU_BUTTON_HOVER := Color("#111111")
