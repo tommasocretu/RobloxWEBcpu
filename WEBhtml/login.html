@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <title>Accedi — RobloxWeb</title>
+<meta name="description" content="Accedi a RobloxWeb o crea un nuovo account per pubblicare giochi e usare i preferiti.">
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
@@ -13,17 +14,18 @@
 <body data-page="login">
 <header class="site-header" id="site-header"></header>
 <main class="container">
-  <div class="auth-wrap">
-    <div class="auth-card">
-      <div class="auth-tabs" role="tablist">
-        <button type="button" class="active" data-tab="login" role="tab" aria-selected="true">Accedi</button>
-        <button type="button" data-tab="register" role="tab" aria-selected="false">Registrati</button>
-      </div>
+  <h1 class="visually-hidden">Accedi o registrati a RobloxWeb</h1>
 
-      <h1 id="auth-title">Bentornato!</h1>
-      <p class="sub" id="auth-sub">Accedi per giocare, aggiungere ai preferiti e pubblicare i tuoi giochi.</p>
-      <div class="alert" id="auth-alert" hidden></div>
+  <div class="alert alert-info" id="auth-session" hidden>
+    <span id="auth-session-text"></span>
+    <a href="/profile.html">Vai al profilo</a>
+    <button class="link-button" type="button" id="auth-logout">Esci</button>
+  </div>
+  <div class="alert" id="auth-alert" hidden></div>
 
+  <div class="auth-columns">
+    <section class="auth-panel" aria-labelledby="login-title">
+      <h2 id="login-title">Accedi a RobloxWeb</h2>
       <form id="login-form" autocomplete="on">
         <div class="field">
           <label for="login-username">Username</label>
@@ -33,10 +35,20 @@
           <label for="login-password">Password</label>
           <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="200" required>
         </div>
-        <button class="btn btn-neutral btn-medium btn-block" type="submit" id="login-submit">Accedi</button>
+        <div class="form-actions">
+          <button class="btn btn-neutral btn-medium" type="submit" id="login-submit">Accedi</button>
+          <button class="btn btn-negative btn-medium" type="reset">Annulla</button>
+        </div>
       </form>
+      <p class="auth-guest">
+        <button class="link-button" type="button" id="guest-button">Gioca come ospite</button>
+      </p>
+      <p class="auth-note">Accesso demo: <code>demo</code> / <code>demo1234</code>.</p>
+    </section>
 
-      <form id="register-form" autocomplete="on" hidden>
+    <section class="auth-panel" aria-labelledby="register-title">
+      <h2 id="register-title">Registrati</h2>
+      <form id="register-form" autocomplete="on">
         <div class="field">
           <label for="register-username">Scegli un username</label>
           <input id="register-username" name="username" autocomplete="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required>
@@ -49,15 +61,13 @@
           <label for="register-password2">Ripeti la password</label>
           <input id="register-password2" name="password2" type="password" autocomplete="new-password" minlength="6" maxlength="200" required>
         </div>
-        <button class="btn btn-primary btn-medium btn-block" type="submit" id="register-submit">Crea account</button>
+        <p class="auth-note">
+          Username di 3–20 caratteri: lettere, numeri e underscore. Gli ospiti possono
+          giocare ma non aggiungere ai preferiti, segnalare, chattare o pubblicare.
+        </p>
+        <button class="btn btn-primary btn-medium" type="submit" id="register-submit">Crea account</button>
       </form>
-
-      <div class="divider">oppure</div>
-      <button class="btn btn-negative btn-medium btn-block" type="button" id="guest-button">Gioca come ospite</button>
-      <p class="small muted" style="margin:12px 0 0">
-        Gli ospiti possono giocare ma non aggiungere ai preferiti, segnalare, chattare o pubblicare. Accesso demo: <code>demo</code> / <code>demo1234</code>.
-      </p>
-    </div>
+    </section>
   </div>
 </main>
 <footer class="site-footer" id="site-footer"></footer>
@@ -66,34 +76,16 @@
 (async function () {
   const next = RW.safeNext(RW.qs("next"), "/");
   const alertBox = document.getElementById("auth-alert");
+  const sessionBox = document.getElementById("auth-session");
   const loginForm = document.getElementById("login-form");
   const registerForm = document.getElementById("register-form");
-  const title = document.getElementById("auth-title");
-  const sub = document.getElementById("auth-sub");
-  const tabs = document.querySelectorAll("[data-tab]");
-
-  function setTab(name) {
-    const isLogin = name === "login";
-    loginForm.hidden = !isLogin;
-    registerForm.hidden = isLogin;
-    tabs.forEach((tab) => {
-      const selected = tab.dataset.tab === name;
-      tab.classList.toggle("active", selected);
-      tab.setAttribute("aria-selected", selected ? "true" : "false");
-    });
-    title.textContent = isLogin ? "Bentornato!" : "Crea il tuo account";
-    sub.textContent = isLogin
-      ? "Accedi per giocare, aggiungere ai preferiti e pubblicare i tuoi giochi."
-      : "Registrati per pubblicare giochi con RobloxWeb Studio.";
-    RW.setAlert(alertBox, "", "error");
-    (isLogin ? document.getElementById("login-username") : document.getElementById("register-username")).focus();
-  }
-
-  tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
 
   const user = await RW.me();
   if (user) {
-    RW.setAlert(alertBox, "Sei connesso come " + user.name + ". Puoi cambiare account qui sotto.", "info");
+    sessionBox.hidden = false;
+    document.getElementById("auth-session-text").textContent =
+      "Sei connesso come " + user.name + ".";
+    document.getElementById("auth-logout").addEventListener("click", () => RW.logout());
   }
   await RW.initHeader();
 
@@ -115,6 +107,8 @@
     }
     window.location.href = next;
   });
+
+  loginForm.addEventListener("reset", () => RW.setAlert(alertBox, "", "error"));
 
   registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -149,8 +143,6 @@
       RW.setAlert(alertBox, result.error, "error");
     }
   });
-
-  if (RW.qs("tab") === "register") setTab("register");
 })();
 </script>
 </body>
