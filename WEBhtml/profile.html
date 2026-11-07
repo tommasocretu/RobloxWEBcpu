@@ -5,45 +5,52 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <title>Profilo — RobloxWeb</title>
+<meta name="description" content="Il profilo RobloxWeb: giochi pubblicati, statistiche e giochi preferiti.">
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="profile">
 <header class="site-header" id="site-header"></header>
 <main class="container">
-  <section class="profile-head" id="profile-head" hidden>
-    <div class="avatar" id="profile-avatar">?</div>
-    <div>
-      <h1 id="profile-name"></h1>
-      <div class="muted" id="profile-username"></div>
-      <div class="profile-stats" id="profile-stats"></div>
-    </div>
-    <div class="profile-actions" id="profile-actions"></div>
-  </section>
-
   <div class="alert" id="profile-alert" hidden></div>
+  <div class="empty" id="profile-loading">Caricamento…</div>
 
-  <section>
-    <div class="section-head">
-      <h2 id="places-title">Le mie esperienze</h2>
-      <span class="hint" id="places-hint"></span>
-    </div>
-    <div class="card-grid" id="my-places"></div>
-    <div class="empty" id="my-places-empty" hidden></div>
-  </section>
+  <div class="profile-layout" id="profile-layout" hidden>
+    <aside class="profile-card" aria-labelledby="profile-name">
+      <h1 id="profile-name"></h1>
+      <div class="profile-username" id="profile-username"></div>
+      <div class="profile-avatar-slot" id="profile-avatar"></div>
+      <dl class="profile-stats" id="profile-stats"></dl>
+      <div class="profile-actions" id="profile-actions"></div>
+    </aside>
 
-  <section id="liked-section" hidden>
-    <div class="section-head">
-      <h2>Esperienze che ti piacciono</h2>
-    </div>
-    <div class="card-grid" id="liked-places"></div>
-  </section>
+    <section class="profile-right" aria-label="Contenuti del profilo">
+      <div class="profile-tabs" id="profile-tabs" role="tablist" aria-label="Sezioni del profilo" aria-orientation="vertical">
+        <button class="profile-tab active" type="button" id="tab-places-button" role="tab" aria-selected="true" aria-controls="tab-places">Giochi</button>
+        <button class="profile-tab" type="button" id="tab-likes-button" role="tab" aria-selected="false" aria-controls="tab-likes" hidden>Preferiti</button>
+      </div>
+
+      <section class="profile-panel" id="tab-places" role="tabpanel" aria-labelledby="tab-places-button">
+        <h2 class="visually-hidden">Giochi pubblicati</h2>
+        <div class="profile-grid" id="my-places"></div>
+        <div class="empty" id="my-places-empty" hidden></div>
+      </section>
+
+      <section class="profile-panel" id="tab-likes" role="tabpanel" aria-labelledby="tab-likes-button" hidden>
+        <h2 class="visually-hidden">Giochi preferiti</h2>
+        <div class="profile-grid" id="liked-places"></div>
+        <div class="empty" id="liked-empty" hidden>Nessun gioco preferito.</div>
+      </section>
+    </section>
+  </div>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
-<dialog class="edit-dialog" id="edit-dialog">
+<dialog class="rw-dialog" id="edit-dialog">
   <form id="edit-form">
-    <h2>Modifica esperienza</h2>
+    <h2>Modifica gioco</h2>
     <p class="small muted" id="edit-subtitle"></p>
     <div class="alert" id="edit-alert" hidden></div>
     <div class="field">
@@ -57,45 +64,55 @@
     <div class="field">
       <label for="edit-visibility">Visibilità</label>
       <select id="edit-visibility">
-        <option value="public">Pubblica — visibile nel catalogo</option>
+        <option value="public">Pubblica — visibile nell'elenco dei giochi</option>
         <option value="unlisted">Non elencata — solo con il link</option>
         <option value="private">Privata — solo per te</option>
       </select>
     </div>
     <div class="dialog-actions">
-      <button class="btn btn-ghost" type="button" id="edit-cancel">Annulla</button>
+      <button class="btn btn-negative" type="button" id="edit-cancel">Annulla</button>
       <button class="btn btn-primary" type="submit" id="edit-save">Salva</button>
     </div>
   </form>
 </dialog>
 
-<dialog class="edit-dialog" id="versions-dialog">
+<dialog class="rw-dialog" id="versions-dialog">
   <h2>Storico versioni</h2>
   <p class="small muted" id="versions-subtitle"></p>
   <div class="alert" id="versions-alert" hidden></div>
-  <ul class="version-list" id="versions-list"></ul>
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr><th>Versione</th><th>Data</th><th>Dimensione</th><th>Azioni</th></tr>
+      </thead>
+      <tbody id="versions-body"></tbody>
+    </table>
+  </div>
   <div class="dialog-actions">
-    <button class="btn btn-ghost" type="button" id="versions-close">Chiudi</button>
+    <button class="btn btn-negative" type="button" id="versions-close">Chiudi</button>
   </div>
 </dialog>
 
 <script>
 (async function () {
   const alertBox = document.getElementById("profile-alert");
+  const loading = document.getElementById("profile-loading");
+  const layout = document.getElementById("profile-layout");
   const grid = document.getElementById("my-places");
   const empty = document.getElementById("my-places-empty");
-  const head = document.getElementById("profile-head");
   const actions = document.getElementById("profile-actions");
-  const placesTitle = document.getElementById("places-title");
-  const placesHint = document.getElementById("places-hint");
   const statsBox = document.getElementById("profile-stats");
-  const likedSection = document.getElementById("liked-section");
+  const likedGrid = document.getElementById("liked-places");
+  const likedEmpty = document.getElementById("liked-empty");
+  const likesButton = document.getElementById("tab-likes-button");
+  const placesPanel = document.getElementById("tab-places");
+  const likesPanel = document.getElementById("tab-likes");
   const dialog = document.getElementById("edit-dialog");
   const editAlert = document.getElementById("edit-alert");
   const editForm = document.getElementById("edit-form");
   const versionsDialog = document.getElementById("versions-dialog");
   const versionsAlert = document.getElementById("versions-alert");
-  const versionsList = document.getElementById("versions-list");
+  const versionsBody = document.getElementById("versions-body");
   let versionsPlaceId = 0;
 
   const me = await RW.me();
@@ -109,8 +126,8 @@
 
   let profile;
   let places = [];
-  let stats = { places: 0, visits: 0, likes: 0 };
   let canEdit = false;
+  let stats = { places: 0, visits: 0, likes: 0 };
 
   if (ownProfile) {
     if (!me) {
@@ -121,6 +138,7 @@
     canEdit = !me.is_guest;
     const result = await RW.api("/api/me/places");
     if (!result.ok) {
+      loading.hidden = true;
       RW.setAlert(alertBox, result.error, "error");
       return;
     }
@@ -133,6 +151,7 @@
   } else {
     const result = await RW.api("/api/users/" + encodeURIComponent(requested));
     if (!result.ok) {
+      loading.hidden = true;
       RW.setAlert(
         alertBox,
         result.status === 404 ? "Utente non trovato." : result.error,
@@ -147,72 +166,88 @@
       visits: places.reduce((sum, place) => sum + Number(place.visits || 0), 0),
       likes: places.reduce((sum, place) => sum + Number(place.likes || 0), 0),
     };
-    placesTitle.textContent = "Esperienze di " + profile.name;
   }
 
   document.title = profile.name + " — RobloxWeb";
-  head.hidden = false;
-  const avatar = document.getElementById("profile-avatar");
-  avatar.textContent = String(profile.name || "?").slice(0, 1).toUpperCase();
-  const color = RW.userColor(profile);
-  avatar.style.background = "linear-gradient(135deg, " + color + ", " + color + "cc)";
+  loading.hidden = true;
+  layout.hidden = false;
+  document.getElementById("profile-avatar").innerHTML = RW.avatarHTML(profile, 352, false);
   document.getElementById("profile-name").textContent = profile.name;
-  const username = document.getElementById("profile-username");
-  let sub = profile.username
-    ? "@" + profile.username + (profile.is_guest ? " · account ospite" : "")
-    : "";
+
+  let sub = profile.username ? "@" + profile.username : "";
+  if (profile.is_guest) {
+    sub = sub ? sub + " · account ospite" : "account ospite";
+  }
   if (profile.created_at) {
     const since = "dal " + new Date(profile.created_at).toLocaleDateString("it-IT");
     sub = sub ? sub + " · " + since : since;
   }
-  username.textContent = sub;
+  document.getElementById("profile-username").textContent = sub;
+
   statsBox.innerHTML =
-    "<span><strong>" + RW.formatNumber(stats.places || 0) + "</strong> esperienze</span>" +
-    "<span><strong>" + RW.formatNumber(stats.visits || 0) + "</strong> visite</span>" +
-    "<span><strong>" + RW.formatNumber(stats.likes || 0) + "</strong> like</span>";
+    '<div class="profile-stat-row"><dt>Giochi</dt><dd>' +
+    RW.formatNumber(stats.places || 0) + "</dd></div>" +
+    '<div class="profile-stat-row"><dt>Visite</dt><dd>' +
+    RW.formatNumber(stats.visits || 0) + "</dd></div>" +
+    '<div class="profile-stat-row"><dt>Preferiti</dt><dd>' +
+    RW.formatNumber(stats.likes || 0) + "</dd></div>";
 
   if (canEdit) {
     actions.innerHTML =
-      '<a class="btn" href="/studio.html">RobloxWeb Studio</a>' +
-      '<button class="btn btn-ghost" type="button" id="profile-logout">Esci</button>';
+      '<a class="btn btn-control btn-control-large" href="/studio.html">Apri Studio</a>' +
+      '<button class="btn btn-control btn-control-large" type="button" id="profile-logout">Esci</button>';
     document.getElementById("profile-logout").addEventListener("click", () => RW.logout());
-    placesHint.textContent =
-      "Apri il livello in Studio per modificare il mondo e pubblicare una nuova versione.";
   } else if (ownProfile && me && me.is_guest) {
     actions.innerHTML =
-      '<a class="btn" href="/login.html">Registrati</a>' +
-      '<button class="btn btn-ghost" type="button" id="profile-logout">Esci</button>';
+      '<a class="btn btn-control btn-control-large" href="/login.html">Registrati</a>' +
+      '<button class="btn btn-control btn-control-large" type="button" id="profile-logout">Esci</button>';
     document.getElementById("profile-logout").addEventListener("click", () => RW.logout());
     RW.setAlert(
       alertBox,
-      "Stai usando un account ospite: le esperienze non possono essere pubblicate. " +
+      "Stai usando un account ospite: i giochi non possono essere pubblicati. " +
       "Registrati per creare un account permanente.",
       "warn"
     );
   } else {
-    actions.innerHTML = '<a class="btn" href="/">Sfoglia le esperienze</a>';
+    actions.innerHTML = '<a class="btn btn-neutral btn-medium" href="/games.html">Sfoglia i giochi</a>';
+  }
+
+  if (ownProfile) {
+    likesButton.hidden = false;
+  }
+
+  function liveTextHTML(place) {
+    const live = Number(place.live_players || 0);
+    return live > 0
+      ? `<span class="live-count" data-live-text="1"> · ${RW.formatNumber(live)} che giocano</span>`
+      : "";
   }
 
   function ownerCard(place) {
+    let badges = "";
+    if (ownProfile) {
+      const badge = place.hidden
+        ? '<span class="badge badge-hidden">Nascosta</span>'
+        : `<span class="badge badge-${RW.escape(place.visibility)}">${RW.escape(RW.visibilityLabel(place.visibility))}</span>`;
+      badges = '<div class="card-badges">' + badge +
+        '<span class="badge">v' + RW.formatNumber(place.current_version) + "</span></div>";
+    }
     return `
       <article class="card owner-card" data-place-card="${RW.escape(place.id)}">
-        <a href="/place.html?id=${encodeURIComponent(place.id)}">
-          ${RW.thumbHTML(place)}
-          <div class="card-body">
-            <h3 class="card-title">${RW.escape(place.title)}</h3>
-            <div class="card-meta">
-              ${place.hidden
-                ? '<span class="badge badge-hidden">Nascosta</span>'
-                : `<span class="badge badge-${RW.escape(place.visibility)}">${RW.escape(RW.visibilityLabel(place.visibility))}</span>`}
-              <span class="dot">·</span>v${RW.formatNumber(place.current_version)}
-              <span class="dot">·</span>${RW.formatNumber(place.visits)} visite
-              <span class="dot">·</span>${RW.formatNumber(place.likes)} like
-            </div>
+        <a class="card-link" href="/place.html?id=${encodeURIComponent(place.id)}">
+          ${RW.thumbHTML(place, "card")}
+          <h3 class="card-title">${RW.escape(place.title)}</h3>
+          ${badges}
+          <div class="card-meta">
+            <div class="card-meta-line card-author">di ${RW.escape(place.author)}${liveTextHTML(place)}</div>
+            <div class="card-meta-line card-stats">${RW.formatNumber(place.visits)} visite · ` +
+              `<span class="like-count" aria-label="${RW.formatNumber(place.likes)} preferiti">` +
+              `<span class="star" aria-hidden="true">★</span> ${RW.formatNumber(place.likes)}</span></div>
           </div>
         </a>
         ${canEdit ? `<div class="owner-actions">
-          <button class="btn btn-small" type="button" data-edit="${place.id}">Modifica</button>
-          <button class="btn btn-small" type="button" data-versions="${place.id}">Versioni</button>
+          <button class="btn btn-small btn-control" type="button" data-edit="${place.id}">Modifica</button>
+          <button class="btn btn-small btn-control" type="button" data-versions="${place.id}">Versioni</button>
           ${place.hidden ? "" : `<a class="btn btn-small btn-primary" href="/play.html?id=${encodeURIComponent(place.id)}">Gioca</a>`}
         </div>` : ""}
       </article>`;
@@ -222,9 +257,9 @@
     if (places.length === 0) {
       grid.innerHTML = "";
       empty.hidden = false;
-      empty.textContent = canEdit
-        ? "Non hai ancora pubblicato esperienze. Apri RobloxWeb Studio e premi Pubblica."
-        : "Questo autore non ha esperienze pubbliche.";
+      empty.textContent = ownProfile
+        ? "Non hai ancora pubblicato giochi. Apri Studio e premi Pubblica."
+        : "Questo autore non ha giochi pubblici.";
       return;
     }
     empty.hidden = true;
@@ -237,17 +272,44 @@
     });
   }
 
+  function selectTab(name) {
+    const isPlaces = name === "places";
+    placesPanel.hidden = !isPlaces;
+    likesPanel.hidden = isPlaces;
+    document.getElementById("tab-places-button").classList.toggle("active", isPlaces);
+    document.getElementById("tab-places-button").setAttribute("aria-selected", isPlaces ? "true" : "false");
+    likesButton.classList.toggle("active", !isPlaces);
+    likesButton.setAttribute("aria-selected", isPlaces ? "false" : "true");
+  }
+
+  document.getElementById("tab-places-button").addEventListener("click", () => selectTab("places"));
+  likesButton.addEventListener("click", () => selectTab("likes"));
+  document.getElementById("profile-tabs").addEventListener("keydown", (event) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const buttons = [document.getElementById("tab-places-button"), likesButton].filter((button) => !button.hidden);
+    const current = buttons.indexOf(document.activeElement);
+    let next = current;
+    if (event.key === "ArrowDown") next = (current + 1) % buttons.length;
+    if (event.key === "ArrowUp") next = (current - 1 + buttons.length) % buttons.length;
+    if (event.key === "Home") next = 0;
+    if (event.key === "End") next = buttons.length - 1;
+    buttons[next].focus();
+    selectTab(next === 0 ? "places" : "likes");
+  });
+
   function openEdit(placeId) {
     const place = places.find((item) => item.id === placeId);
     if (!place) return;
     document.getElementById("edit-subtitle").textContent =
-      "Esperienza #" + place.id + " · versione " + place.current_version;
+      "Gioco #" + place.id + " · versione " + place.current_version;
     document.getElementById("edit-title").value = place.title;
     document.getElementById("edit-description").value = place.description || "";
     document.getElementById("edit-visibility").value = place.visibility;
     RW.setAlert(editAlert, "", "error");
     dialog.dataset.placeId = String(placeId);
     dialog.showModal();
+    document.getElementById("edit-title").focus();
   }
 
   async function loadVersions() {
@@ -256,31 +318,29 @@
     const current = place ? Number(place.current_version) : 0;
     const result = await RW.api("/api/places/" + placeId + "/versions");
     if (!result.ok) {
-      versionsList.innerHTML = "";
+      versionsBody.innerHTML = "";
       RW.setAlert(versionsAlert, result.error, "error");
       return;
     }
     RW.setAlert(versionsAlert, "", "error");
     const versions = result.data.versions || [];
-    versionsList.innerHTML = versions.map((version) => {
+    versionsBody.innerHTML = versions.map((version) => {
       const when = version.created_at
         ? new Date(version.created_at).toLocaleString("it-IT")
-        : "";
+        : "—";
       const size = version.bytes
         ? Math.max(1, Math.round(Number(version.bytes) / 1024)) + " KB"
-        : "";
+        : "—";
       const isCurrent = Number(version.version) === current;
-      return `
-        <li class="version-row">
-          <div>
-            <strong>v${RW.formatNumber(version.version)}</strong>
-            ${isCurrent ? '<span class="badge badge-public">corrente</span>' : ""}
-            <div class="small muted">${RW.escape(when)}${size ? " · " + RW.escape(size) : ""}</div>
-          </div>
-          ${isCurrent ? "" : `<button class="btn btn-small" type="button" data-rollback="${version.version}">Ripristina</button>`}
-        </li>`;
+      return `<tr>
+        <td><strong>v${RW.formatNumber(version.version)}</strong>` +
+        (isCurrent ? ' <span class="badge badge-public">corrente</span>' : "") + "</td>" +
+        `<td class="small">${RW.escape(when)}</td>` +
+        `<td class="small">${RW.escape(size)}</td>` +
+        `<td>${isCurrent ? "—" : `<button class="btn btn-small btn-neutral" type="button" data-rollback="${version.version}">Ripristina</button>`}</td>` +
+        "</tr>";
     }).join("");
-    versionsList.querySelectorAll("[data-rollback]").forEach((button) => {
+    versionsBody.querySelectorAll("[data-rollback]").forEach((button) => {
       button.addEventListener("click", () => rollbackVersion(Number(button.dataset.rollback), button));
     });
   }
@@ -290,8 +350,8 @@
     if (!place) return;
     versionsPlaceId = placeId;
     document.getElementById("versions-subtitle").textContent =
-      "Esperienza #" + place.id + " · " + place.title;
-    versionsList.innerHTML = '<li class="version-row muted">Caricamento…</li>';
+      "Gioco #" + place.id + " · " + place.title;
+    versionsBody.innerHTML = '<tr><td colspan="4" class="muted">Caricamento…</td></tr>';
     RW.setAlert(versionsAlert, "", "error");
     versionsDialog.showModal();
     loadVersions();
@@ -299,10 +359,12 @@
 
   async function rollbackVersion(version, button) {
     if (!versionsPlaceId) return;
-    if (!confirm("Ripristinare la versione v" + version +
-      "? Verrà creata una nuova versione corrente; lo storico non viene cancellato.")) {
-      return;
-    }
+    const confirmed = await RW.confirmDialog({
+      title: "Ripristinare la versione v" + version + "?",
+      message: "Verrà creata una nuova versione corrente; lo storico non viene cancellato.",
+      confirmLabel: "Ripristina",
+    });
+    if (!confirmed) return;
     button.disabled = true;
     const result = await RW.api(
       "/api/places/" + versionsPlaceId + "/versions/" + version + "/rollback",
@@ -352,25 +414,29 @@
     places = places.map((item) => (item.id === placeId ? updated : item));
     dialog.close();
     render();
-    RW.setAlert(alertBox, 'Esperienza aggiornata: "' + updated.title + '".', "info");
+    RW.setAlert(alertBox, 'Gioco aggiornato: "' + updated.title + '".', "info");
   });
 
   render();
-  await RW.initHeader();
 
-  if (ownProfile && me && !me.is_guest) {
+  if (ownProfile) {
     const liked = await RW.api("/api/me/likes");
     if (liked.ok) {
       const items = liked.data.places || [];
-      if (items.length) {
-        document.getElementById("liked-places").innerHTML = items.map(RW.card).join("");
-        likedSection.hidden = false;
-      }
+      likedEmpty.hidden = items.length > 0;
+      likedGrid.innerHTML = items.map(RW.card).join("");
+    } else {
+      likedEmpty.hidden = false;
     }
   }
 
+  await RW.initHeader();
+
   if (places.length) {
-    RW.pollLive(() => (ownProfile ? "/api/me/places" : "/api/users/" + encodeURIComponent(requested)), 12000);
+    RW.pollLive(
+      () => (ownProfile ? "/api/me/places" : "/api/users/" + encodeURIComponent(requested)),
+      12000
+    );
   }
 })();
 </script>

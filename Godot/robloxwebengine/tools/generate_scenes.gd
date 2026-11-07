@@ -13,7 +13,6 @@ const CHARACTER_SCRIPT := preload("res://scripts/player/character.gd")
 const REMOTE_CHARACTER_SCRIPT := preload("res://scripts/player/remote_character.gd")
 const CAMERA_RIG_SCRIPT := preload("res://scripts/player/camera_rig.gd")
 const MENU_SCRIPT := preload("res://scripts/ui/menu.gd")
-const HUD_SCRIPT := preload("res://scripts/ui/hud.gd")
 const MAIN_SCRIPT := preload("res://scripts/main.gd")
 const NET_CLIENT_SCRIPT := preload("res://scripts/net/net_client.gd")
 const PLACE_CLIENT_SCRIPT := preload("res://scripts/net/place_client.gd")
@@ -49,7 +48,8 @@ func _init() -> void:
 	_save_scene(_build_character(), "res://scenes/player/character.tscn")
 	_save_scene(_build_remote_character(), "res://scenes/player/remote_character.tscn")
 	_save_scene(_build_menu(), "res://scenes/ui/menu.tscn")
-	_save_scene(_build_hud(), "res://scenes/ui/hud.tscn")
+	# L'HUD 2014 e le scene banner/debug/hurt/game_menu sono scritte a mano:
+	# il generatore non le sovrascrive più.
 	_save_scene(_build_level_select(), "res://scenes/ui/level_select.tscn")
 	_save_scene(_build_editor(), "res://scenes/editor/editor.tscn")
 	_save_scene(_build_studio_start(), "res://scenes/studio/studio_start.tscn")
@@ -348,126 +348,6 @@ func _build_menu() -> CanvasLayer:
 	return menu
 
 
-func _build_hud() -> CanvasLayer:
-	var hud := CanvasLayer.new()
-	hud.name = "HUD"
-	hud.set_script(HUD_SCRIPT)
-
-	var crosshair := ColorRect.new()
-	crosshair.name = "Crosshair"
-	crosshair.color = Color(1, 1, 1, 0.85)
-	crosshair.size = Vector2(6, 6)
-	crosshair.anchor_left = 0.5
-	crosshair.anchor_top = 0.5
-	crosshair.anchor_right = 0.5
-	crosshair.anchor_bottom = 0.5
-	crosshair.offset_left = -3
-	crosshair.offset_top = -3
-	crosshair.offset_right = 3
-	crosshair.offset_bottom = 3
-	crosshair.visible = false
-	hud.add_child(crosshair)
-
-	var health_bar := ProgressBar.new()
-	health_bar.name = "HealthBar"
-	health_bar.max_value = 100
-	health_bar.value = 100
-	health_bar.show_percentage = false
-	health_bar.anchor_left = 0.5
-	health_bar.anchor_top = 1.0
-	health_bar.anchor_right = 0.5
-	health_bar.anchor_bottom = 1.0
-	health_bar.offset_left = -110
-	health_bar.offset_top = -44
-	health_bar.offset_right = 110
-	health_bar.offset_bottom = -16
-	hud.add_child(health_bar)
-
-	var coins := Label.new()
-	coins.name = "Coins"
-	coins.text = "Monete: 0 / 0"
-	coins.add_theme_font_size_override("font_size", 22)
-	coins.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
-	coins.offset_left = 14
-	coins.offset_top = 12
-	coins.offset_right = 320
-	coins.offset_bottom = 42
-	hud.add_child(coins)
-
-	var message := Label.new()
-	message.name = "Message"
-	message.add_theme_font_size_override("font_size", 38)
-	message.add_theme_color_override("font_color", Color(1, 1, 1))
-	message.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	message.add_theme_constant_override("outline_size", 10)
-	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	message.anchor_right = 1.0
-	message.offset_top = 80
-	message.offset_bottom = 140
-	message.modulate.a = 0.0
-	hud.add_child(message)
-
-	var fps := Label.new()
-	fps.name = "FPS"
-	fps.text = "-- FPS"
-	fps.add_theme_font_size_override("font_size", 16)
-	fps.anchor_left = 1.0
-	fps.anchor_right = 1.0
-	fps.offset_left = -110
-	fps.offset_top = 12
-	fps.offset_right = -12
-	fps.offset_bottom = 36
-	fps.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hud.add_child(fps)
-
-	var players := Label.new()
-	players.name = "Players"
-	players.text = "Giocatori: 1"
-	players.add_theme_font_size_override("font_size", 16)
-	players.anchor_left = 1.0
-	players.anchor_right = 1.0
-	players.offset_left = -180
-	players.offset_top = 36
-	players.offset_right = -12
-	players.offset_bottom = 60
-	players.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hud.add_child(players)
-
-	var chat_log := Label.new()
-	chat_log.name = "ChatLog"
-	chat_log.add_theme_font_size_override("font_size", 16)
-	chat_log.add_theme_color_override("font_color", Color(1, 1, 1, 0.92))
-	chat_log.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	chat_log.add_theme_constant_override("outline_size", 6)
-	chat_log.anchor_left = 0.0
-	chat_log.anchor_top = 1.0
-	chat_log.anchor_right = 0.0
-	chat_log.anchor_bottom = 1.0
-	chat_log.offset_left = 14
-	chat_log.offset_top = -190
-	chat_log.offset_right = 470
-	chat_log.offset_bottom = -58
-	chat_log.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	hud.add_child(chat_log)
-
-	var chat_input := LineEdit.new()
-	chat_input.name = "ChatInput"
-	chat_input.placeholder_text = "Scrivi... (Invio per inviare, Esc per annullare)"
-	chat_input.max_length = 120
-	chat_input.add_theme_font_size_override("font_size", 16)
-	chat_input.anchor_left = 0.0
-	chat_input.anchor_top = 1.0
-	chat_input.anchor_right = 0.0
-	chat_input.anchor_bottom = 1.0
-	chat_input.offset_left = 14
-	chat_input.offset_top = -50
-	chat_input.offset_right = 470
-	chat_input.offset_bottom = -20
-	hud.add_child(chat_input)
-
-	return hud
-
-
 # --- Scena principale -------------------------------------------------------------
 
 func _build_main() -> Node:
@@ -493,6 +373,11 @@ func _build_main() -> Node:
 	hud.name = "HUD"
 	hud.visible = false
 	main.add_child(hud)
+
+	var game_menu := (load("res://scenes/ui/game_menu.tscn") as PackedScene).instantiate()
+	game_menu.name = "GameMenu"
+	game_menu.visible = false
+	main.add_child(game_menu)
 
 	var global_sound := AudioStreamPlayer.new()
 	global_sound.name = "GlobalSound"

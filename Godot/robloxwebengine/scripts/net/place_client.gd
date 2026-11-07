@@ -28,7 +28,7 @@ func start() -> bool:
 		return false
 	_place_id = read_query_param("place")
 	if _place_id == "" or not _place_id.is_valid_int():
-		_fail("Apri questa esperienza dal sito.", "no_place")
+		_fail("Gioco non valido. Apri un gioco dal catalogo.", "no_place")
 		return false
 	_base_url = _origin()
 	if _base_url == "":
@@ -61,6 +61,32 @@ func read_query_param(name: String) -> String:
 	if typeof(value) == TYPE_STRING:
 		return str(value).strip_edges()
 	return ""
+
+
+## Segnala a play.html che livello e personaggio sono pronti.
+func post_ready() -> void:
+	_post_message({"type": "rw-ready"})
+
+
+## Errore fatale di bootstrap: message è la frase breve, detail il suggerimento.
+func post_error(message: String, detail: String = "") -> void:
+	var payload := {"type": "rw-error", "message": message}
+	if detail.strip_edges() != "":
+		payload["detail"] = detail
+	_post_message(payload)
+
+
+func _post_message(payload: Dictionary) -> void:
+	if not OS.has_feature("web"):
+		return
+	var bridge := Engine.get_singleton("JavaScriptBridge")
+	if bridge == null:
+		return
+	bridge.eval(
+		"if (window.parent && window.parent !== window) {"
+		+ " window.parent.postMessage(%s, window.location.origin); }" % JSON.stringify(payload),
+		true
+	)
 
 
 ## Torna alla pagina dell'esperienza (il client gira dentro play.html).
@@ -106,14 +132,14 @@ func _on_request_completed(
 			_fail("Accedi per giocare.", "unauthorized")
 			return
 		403:
-			_fail("Esperienza non trovata o privata.", "forbidden")
+			_fail("Gioco non trovato o privato.", "forbidden")
 			return
 		404:
-			_fail("Esperienza non trovata o privata.", "not_found")
+			_fail("Gioco non trovato o privato.", "not_found")
 			return
 		503:
 			_fail(
-				str(payload.get("error", "L'esperienza non ha una versione pubblicata.")),
+				str(payload.get("error", "L'autore non ha ancora pubblicato una versione giocabile.")),
 				"unavailable"
 			)
 			return
@@ -142,18 +168,5 @@ func _on_request_completed(
 
 func _fail(message: String, code: String) -> void:
 	push_warning("PlaceClient: %s" % message)
-	_post_error(message)
 	request_failed.emit(message, code)
 
-
-func _post_error(message: String) -> void:
-	if not OS.has_feature("web"):
-		return
-	var bridge := Engine.get_singleton("JavaScriptBridge")
-	if bridge == null:
-		return
-	bridge.eval(
-		"window.parent.postMessage({type:'rw-error', message:%s}, window.location.origin)"
-		% JSON.stringify(message),
-		true
-	)

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<title>Giochi — RobloxWeb</title>
+<meta name="description" content="Sfoglia i giochi pubblicati dalla community di RobloxWeb: cerca per titolo o autore e ordina per popolarità, preferiti o novità.">
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js"></script>
+</head>
+<body data-page="games">
+<header class="site-header" id="site-header"></header>
+<main class="container">
+  <h1 class="games-title">Giochi</h1>
+
+  <form class="games-filters" method="get" action="/games.html">
+    <label for="games-sort">Ordina per</label>
+    <select id="games-sort" name="sort">
+      <option value="popular">Popolari</option>
+      <option value="likes">Più apprezzati</option>
+      <option value="recent">Recenti</option>
+    </select>
+    <div class="games-search">
+      <input id="games-q" name="q" type="search" maxlength="80" aria-label="Cerca giochi o autori">
+      <button class="games-search-submit" type="submit" aria-label="Cerca">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+          <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M11 11l4 4" fill="none" stroke="currentColor" stroke-width="2"/>
+        </svg>
+      </button>
+    </div>
+  </form>
+
+  <div class="alert" id="games-alert" hidden></div>
+
+  <div class="games-layout" id="games-layout">
+    <section class="games-main" aria-label="Elenco dei giochi">
+      <h2 class="visually-hidden">Tutti i giochi</h2>
+      <div class="empty" id="games-loading">Caricamento…</div>
+      <div class="games-grid" id="games-grid" hidden></div>
+      <div class="empty" id="games-empty" hidden>
+        Nessun gioco trovato. <a href="/games.html" id="games-reset">Azzera ricerca</a>
+      </div>
+    </section>
+
+    <aside class="games-sidebar" id="games-sidebar" aria-label="In evidenza e più giocati" hidden>
+      <section class="sidebar-section">
+        <h2>In evidenza</h2>
+        <a class="sidebar-featured" id="sidebar-featured" href="/games.html"></a>
+      </section>
+      <section class="sidebar-section">
+        <h2>Più giocati</h2>
+        <div id="sidebar-popular"></div>
+      </section>
+      <section class="sidebar-section sidebar-create">
+        <h2>Crea il tuo gioco</h2>
+        <p>Costruisci il tuo mondo con RobloxWeb Studio e pubblicalo qui.</p>
+        <a class="btn btn-primary btn-small" href="/studio.html">Apri Studio</a>
+      </section>
+    </aside>
+  </div>
+</main>
+<footer class="site-footer" id="site-footer"></footer>
+
+<script>
+(async function () {
+  const SORTS = ["popular", "likes", "recent"];
+  const sortParam = RW.qs("sort");
+  const sort = SORTS.includes(sortParam) ? sortParam : "popular";
+  const query = (RW.qs("q") || "").trim().slice(0, 80);
+  const layout = document.getElementById("games-layout");
+  const grid = document.getElementById("games-grid");
+  const loading = document.getElementById("games-loading");
+  const empty = document.getElementById("games-empty");
+  const reset = document.getElementById("games-reset");
+  const alertBox = document.getElementById("games-alert");
+  const sidebar = document.getElementById("games-sidebar");
+  const featuredLink = document.getElementById("sidebar-featured");
+  const popularBox = document.getElementById("sidebar-popular");
+  const sortSelect = document.getElementById("games-sort");
+  const searchInput = document.getElementById("games-q");
+
+  sortSelect.value = sort;
+  searchInput.value = query;
+
+  const params = new URLSearchParams({ sort });
+  if (query) params.set("q", query);
+  const apiUrl = "/api/places?" + params.toString();
+
+  function placeHref(place) {
+    return "/place.html?id=" + encodeURIComponent(place.id);
+  }
+
+  function sidebarFeaturedHTML(place) {
+    const title = RW.escape(place.title);
+    const author = RW.escape(place.author);
+    const visits = RW.formatNumber(place.visits);
+    return RW.thumbHTML(place, "sidebar") +
+      '<span class="sidebar-featured-title">' + title + "</span>" +
+      '<span class="sidebar-featured-meta">di ' + author + " · " + visits + " visite</span>" +
+      '<span class="btn btn-primary btn-small btn-play">Gioca</span>';
+  }
+
+  function sidebarRowHTML(place) {
+    const title = RW.escape(place.title);
+    const visits = RW.formatNumber(place.visits);
+    return '<a class="sidebar-popular-row" href="' + placeHref(place) + '">' +
+      RW.thumbHTML(place, "mini") +
+      '<span class="sidebar-popular-text">' +
+      '<span class="sidebar-popular-title">' + title + "</span>" +
+      '<span class="sidebar-popular-meta">' + visits + " visite</span>" +
+      "</span></a>";
+  }
+
+  function hideSidebar() {
+    sidebar.hidden = true;
+    layout.classList.add("no-sidebar");
+  }
+
+  async function load() {
+    loading.hidden = false;
+    grid.hidden = true;
+    empty.hidden = true;
+    RW.setAlert(alertBox, "", "error");
+
+    const result = await RW.api(apiUrl);
+    loading.hidden = true;
+    if (!result.ok) {
+      grid.innerHTML = "";
+      RW.setAlert(alertBox, result.error, "error");
+      return;
+    }
+
+    const items = result.data.places || [];
+    grid.innerHTML = items.map(RW.card).join("");
+    grid.hidden = items.length === 0;
+    empty.hidden = items.length > 0;
+    reset.href = sort === "popular" ? "/games.html" : "/games.html?sort=" + encodeURIComponent(sort);
+  }
+
+  async function loadSidebar() {
+    const result = await RW.api("/api/places?sort=popular");
+    if (!result.ok) {
+      hideSidebar();
+      return;
+    }
+    const items = result.data.places || [];
+    if (!items.length) {
+      hideSidebar();
+      return;
+    }
+
+    const featured = items[0];
+    featuredLink.href = placeHref(featured);
+    featuredLink.innerHTML = sidebarFeaturedHTML(featured);
+
+    const mostPlayed = [...items]
+      .sort((a, b) => Number(b.visits || 0) - Number(a.visits || 0))
+      .slice(0, 3);
+    popularBox.innerHTML = mostPlayed.map(sidebarRowHTML).join("");
+    sidebar.hidden = false;
+    layout.classList.remove("no-sidebar");
+  }
+
+  await RW.initHeader();
+  await Promise.all([load(), loadSidebar()]);
+  RW.pollLive(() => apiUrl, 10000);
+})();
+</script>
+</body>
+</html>

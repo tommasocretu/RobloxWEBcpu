@@ -3,109 +3,173 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Gioca a un gioco creato dalla community di RobloxWeb.">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <title>Gioca — RobloxWeb</title>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body class="play-page">
+<body class="play-page" data-page="play">
 <header class="play-bar">
-  <a class="btn btn-ghost" id="leave-button" href="/">← Torna al sito</a>
+  <a class="play-brand" href="/"><span class="brand-stud" aria-hidden="true"></span>RobloxWeb</a>
   <div class="play-title" id="play-title">Caricamento…</div>
   <div class="play-author" id="play-author"></div>
-  <div class="spacer"></div>
-  <div class="small muted" id="play-player"></div>
+  <div class="play-spacer"></div>
+  <div class="play-live" id="play-live" aria-live="polite">—</div>
+  <a class="btn btn-control play-exit" id="leave-button" href="/">Esci</a>
 </header>
 
 <iframe id="game" class="game-frame" title="Client di gioco" allow="autoplay; fullscreen; gamepad" hidden></iframe>
 
 <div class="play-overlay" id="play-overlay">
-  <div class="play-card">
-    <div class="spinner" id="play-spinner"></div>
-    <h1 id="overlay-title">Preparazione dell'esperienza…</h1>
-    <p class="muted" id="overlay-message">Verifica della sessione e caricamento del client.</p>
-    <p><a class="btn" href="/" id="overlay-back">Torna al sito</a></p>
+  <div class="play-loading" id="play-loading">
+    <div class="play-loading-label">CARICAMENTO</div>
+    <div class="play-loading-bar" aria-hidden="true"><span></span></div>
+  </div>
+  <div class="play-error" id="play-error" hidden>
+    <h1>Impossibile avviare il gioco</h1>
+    <p id="play-error-message"></p>
+    <p class="play-error-detail" id="play-error-detail"></p>
+    <p><a class="btn btn-negative" id="play-back" href="/">Torna al gioco</a></p>
   </div>
 </div>
 
 <script>
 (async function () {
   const id = RW.qs("id");
-  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  const placePath = id && /^\d+$/.test(id) ? "/place.html?id=" + encodeURIComponent(id) : "/";
   const overlay = document.getElementById("play-overlay");
-  const spinner = document.getElementById("play-spinner");
-  const overlayTitle = document.getElementById("overlay-title");
-  const overlayMessage = document.getElementById("overlay-message");
-  const overlayBack = document.getElementById("overlay-back");
+  const loading = document.getElementById("play-loading");
+  const errorBox = document.getElementById("play-error");
+  const errorMessage = document.getElementById("play-error-message");
+  const errorDetail = document.getElementById("play-error-detail");
+  const title = document.getElementById("play-title");
+  const author = document.getElementById("play-author");
+  const live = document.getElementById("play-live");
   const frame = document.getElementById("game");
+  const leave = document.getElementById("leave-button");
+  const back = document.getElementById("play-back");
+  let ready = false;
+  let timeout = null;
 
-  function fail(message) {
-    spinner.hidden = true;
+  leave.href = placePath;
+  back.href = placePath;
+
+  function setLive(value) {
+    const count = Math.max(0, Number(value || 0));
+    if (ready && count < 1) {
+      live.textContent = "1 che gioca";
+      return;
+    }
+    if (count === 0) live.textContent = "Nessuno sta giocando";
+    else if (count === 1) live.textContent = "1 che gioca";
+    else live.textContent = count + " che giocano";
+  }
+
+  function showError(message, detail) {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    loading.hidden = true;
+    errorBox.hidden = false;
+    errorMessage.textContent = String(message || "Errore di avvio del client.");
+    errorDetail.textContent = String(detail || "");
+    errorDetail.hidden = !detail;
     overlay.classList.remove("hidden");
-    overlayTitle.textContent = "Impossibile avviare l'esperienza";
-    overlayMessage.textContent = message;
-    overlayBack.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+  }
+
+  function showGame() {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    ready = true;
+    overlay.classList.add("hidden");
+    overlay.setAttribute("aria-hidden", "true");
+    if (Number(live.dataset.value || 0) < 1) setLive(1);
   }
 
   if (!id || !/^\d+$/.test(id)) {
-    fail("Esperienza non valida. Apri una pagina esperienza dal catalogo.");
+    showError("Gioco non valido. Apri un gioco dal catalogo.");
     return;
   }
 
-  document.getElementById("leave-button").href = "/place.html?id=" + encodeURIComponent(id);
-  overlayBack.href = "/place.html?id=" + encodeURIComponent(id);
-  overlayBack.hidden = true;
-
   const user = await RW.me();
   if (!user) {
+    const next = encodeURIComponent(window.location.pathname + window.location.search);
     window.location.href = "/login.html?next=" + next;
     return;
   }
 
   const detail = await RW.api("/api/places/" + encodeURIComponent(id));
   if (!detail.ok) {
-    fail(
-      detail.status === 403
-        ? "Questa esperienza non è disponibile (privata o nascosta dalla moderazione)."
-        : detail.error
-    );
+    if (detail.status === 401) showError("Accedi per giocare.");
+    else if (detail.status === 403 || detail.status === 404) {
+      showError("Gioco non trovato o privato.");
+    } else if (detail.status === 503) {
+      showError("L'autore non ha ancora pubblicato una versione giocabile.");
+    } else if (detail.status === 0) {
+      showError("Server non raggiungibile.");
+    } else {
+      showError(detail.error || "Errore del server.");
+    }
     return;
   }
+
   const place = detail.data.place;
   document.title = "Gioca a " + place.title + " — RobloxWeb";
-  document.getElementById("play-title").textContent = place.title;
-  document.getElementById("play-author").textContent = "di " + place.author;
-  document.getElementById("play-player").textContent =
-    (user.is_guest ? "Ospite: " : "Giocatore: ") + user.name;
+  title.textContent = place.title;
+  if (place.author) {
+    if (place.owner_id) {
+      const link = document.createElement("a");
+      link.href = "/profile.html?user=" + encodeURIComponent(place.owner_id);
+      link.textContent = "di " + place.author;
+      author.appendChild(link);
+    } else {
+      author.textContent = "di " + place.author;
+    }
+  }
+  live.dataset.value = String(Number(place.live_players || 0));
+  setLive(place.live_players || 0);
 
-  // Verifica che l'export Web del client esista (altrimenti l'iframe mostrerebbe un 404).
   try {
     const probe = await fetch("/dev/index.html", { method: "HEAD", credentials: "same-origin" });
     if (!probe.ok) {
-      fail("Il client Web non è disponibile. Esegui l'export Godot in WEBhtml/dev/ e riprova.");
+      showError("Il client Web non è disponibile. Esegui l'export Godot in WEBhtml/dev/ e riprova.");
       return;
     }
   } catch (_) {
-    fail("Server non raggiungibile.");
+    showError("Server non raggiungibile.");
     return;
   }
 
-  frame.addEventListener("load", () => {
-    setTimeout(() => overlay.classList.add("hidden"), 180);
-  });
-  frame.src = "/dev/index.html?place=" + encodeURIComponent(place.id);
-  frame.hidden = false;
-  overlayBack.hidden = true;
-
-  // Messaggi dal client Godot (JavaScriptBridge) per mostrare errori di bootstrap.
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
-    if (event.data && event.data.type === "rw-error") {
-      fail(String(event.data.message || "Errore di avvio del client."));
+    if (!event.data) return;
+    if (event.data.type === "rw-ready") {
+      showGame();
+    } else if (event.data.type === "rw-error") {
+      showError(
+        event.data.message || "Errore di avvio del client.",
+        event.data.detail || ""
+      );
     }
   });
 
-  await RW.initHeader();
+  frame.hidden = false;
+  frame.src = "/dev/index.html?place=" + encodeURIComponent(id);
+  timeout = setTimeout(() => {
+    showError("Il client non risponde. Ricarica la pagina.");
+  }, 30000);
+
+  RW.pollPlaceLive(place.id, (value) => {
+    live.dataset.value = String(Number(value || 0));
+    setLive(value);
+  }, 10000);
 })();
 </script>
 </body>

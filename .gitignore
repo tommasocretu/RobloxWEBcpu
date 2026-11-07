@@ -42,6 +42,10 @@ WEBhtml/dev/
 # Download di Studio copiati da build_studio.sh (binari grandi, non versionati).
 WEBhtml/downloads/
 
+# Evidenze visuali di lavoro: le contact sheet finali stanno in
+# docs/roblox-2014/evidence/ e sono le uniche versionate.
+.scratch/*/evidence/
+
 # --- Export desktop: build/ -----------------------------------
 
 # Binari Studio Windows/Linux, zip e checksum generati da build_studio.sh.

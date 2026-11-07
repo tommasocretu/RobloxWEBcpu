@@ -4,17 +4,24 @@
 
 - Il progetto Godot vive in `Godot/robloxwebengine/` (non nella root): tutti i path
   `res://` e `project.godot` sono relativi a quella cartella.
-- `WEBhtml/` è il sito servito dal server Python: `index.html` (catalogo), `place.html`,
-  `play.html`, `login.html`, `profile.html`, `admin.html` (moderazione), `studio.html`,
-  `assets/` e `dev/` (export Web del client, rigenerato e gitignored), `downloads/`
-  (zip di Studio, generati e gitignored).
+- `WEBhtml/` è il sito servito dal server Python: `index.html` (home 2014), `games.html`
+  (catalogo), `place.html`, `play.html`, `login.html`, `profile.html`, `admin.html`
+  (moderazione), `studio.html`, `assets/` e `dev/` (export Web del client, rigenerato
+  e gitignored), `downloads/` (zip di Studio, generati e gitignored).
 - `server/` è un unico processo Python (solo standard library): HTTP + API + relay
   WebSocket + SQLite. Vedi `server/README.md`.
 - `build/` contiene gli export desktop di Studio (`build/studio/linux/`,
   `build/studio/windows/`), generati da `build_studio.sh` e gitignored.
 - `deploy/` contiene l'esempio di deploy con TLS: `Caddyfile`, `robloxweb.service`
   e istruzioni (`deploy/README.md`).
-- `PLAN.md` è il piano completo della piattaforma (M0–M5).
+- `docs/roblox-2014/` contiene la specifica canonica del re-skin: `spec.md`, `tokens.md`,
+  `site-map.md`, `hud-client.md`, `media-rules.md`, `godot-theme.md`,
+  `implementation-plan.md`, `acceptance.md`, i prototipi e le contact sheet in
+  `evidence/`.
+- `tools/` contiene i checker (`check_design_tokens.py`, `check_site_content.py`),
+  `verify.sh`, `export_web.sh` e i test headless Godot.
+- `PLAN.md` è il piano completo della piattaforma (M0–M5); il re-skin 2014 è
+  documentato separatamente in `docs/roblox-2014/`.
 
 ## Stato attuale: M5 — Robustezza
 
@@ -64,6 +71,12 @@ Flusso funzionante in locale:
     segnalazioni aperte, **Ignora**, **Nascondi**, place nascoste con **Ripristina**.
     Le place nascoste escono da catalogo/profili/like/play; l'autore le vede con il
     badge **Nascosta**. Esempio TLS/`wss://` in `deploy/` (Caddy + systemd).
+16. **Re-skin 2014:** sito con design system e chrome 2014 (home, Giochi, dettaglio,
+    account, moderazione, Studio), client con HUD 2014 (chat, player list, salute,
+    banner, hurt overlay), Game Menu/Leave/Reset e barra HTML di `play.html` a 36 px.
+    Il client web invia `rw-ready`/`rw-error` alla pagina; l'overlay HTML è l'unico
+    proprietario del caricamento. Specifica, token, regole media e accettazione in
+    `docs/roblox-2014/`.
 
 Seed idempotente al primo avvio: utente `demo` / `demo1234` (cambiare la password!),
 autore `RobloxWeb`, place **Welcome Obby** da `levels/default.rwl.json` e place
@@ -121,29 +134,32 @@ python3 -m unittest discover -s server/tests -v
 ## Sito
 
 - HTML/CSS/JS vanilla, stesso origin del gioco, nessun build step.
-- `assets/site.js` espone `window.RW`: fetch API con cookie, header utente, card,
-  guest/login/logout, gestione errori, `RW.applyLive`/`RW.pollLive` per i contatori.
-  Caricato **senza** `defer` perché gli script inline delle pagine usano `RW` subito.
-- `play.html` verifica la sessione, mostra la top bar, carica l'iframe e ascolta
-  `postMessage` dal client (`rw-leave` → torna alla pagina esperienza,
-  `rw-error` → overlay di errore).
-- `profile.html`: proprie esperienze con badge di visibilità/versione, statistiche,
+- `assets/site.css` è la fonte CSS dei token 2014 (`--rw-*`); il sottoinsieme condiviso
+  è replicato in `Godot/robloxwebengine/scripts/ui/rw_tokens.gd` e verificato da
+  `tools/check_design_tokens.py`.
+- `assets/site.js` espone `window.RW`: fetch API con cookie, header/footer generati,
+  card e media 2014, avatar blocky, guest/login/logout, dialoghi, gestione errori,
+  `RW.applyLive`/`RW.pollLive` e `RW.pollPlaceLive` per i contatori. Caricato **senza**
+  `defer` perché gli script inline delle pagine usano `RW` subito.
+- `index.html` è la home 2014 (hero, tab e card); `games.html` è il catalogo con
+  ricerca/sort `?q=&sort=`. `place.html` ha autore cliccabile, media, statistiche,
+  preferiti, segnalazione e dialoghi 2014.
+- `play.html`: barra HTML 2014 da 36 px (brand, titolo, autore linkato, conteggio,
+  `Esci`), iframe `calc(100vh - 36px)`, overlay `CARICAMENTO` con barra 300×18,
+  box errore, timeout 30 s e handshake `rw-ready`/`rw-error`. Non ha header/footer
+  del sito e non mostra il nome giocatore.
+- `profile.html`: propri giochi con badge di visibilità/versione, statistiche,
   dialog **Modifica** (`PUT /api/places/<id>`) e **Versioni** con rollback;
-  `?user=<id>` mostra il profilo autore pubblico con avatar colorato e le sole
-  esperienze pubbliche. Gli account vedono anche "Esperienze che ti piacciono"
-  (`GET /api/me/likes`).
-- `place.html`: autore cliccabile, versione corrente, visite/like/live aggiornati ogni 10 s,
-  pulsante like (account) e dialog **Segnala** (`POST /api/places/<id>/report`).
-- `index.html`: ricerca per titolo/autore, ordinamento Popolari/Più apprezzati/Recenti,
-  badge live aggiornati senza ridisegnare la griglia.
+  `?user=<id>` mostra il profilo autore pubblico con avatar colorato e i soli giochi
+  pubblici. Gli account vedono anche "Giochi che ti piacciono" (`GET /api/me/likes`).
 - `admin.html`: pagina di moderazione per gli admin (segnalazioni aperte con **Ignora**
-  e **Nascondi**, elenco place nascoste con **Ripristina**); la voce **Moderazione**
+  e **Nascondi**, elenco giochi nascosti con **Ripristina**); la voce **Moderazione**
   compare nel menu account solo con `is_admin`.
 - `studio.html`: download Windows/Linux da `/downloads/` e istruzioni per pubblicare.
   I binari sono prodotti da `./build_studio.sh`; il vecchio editor web `?editor=1` è
   stato rimosso in M2.
-- Esc nel client apre il menu "Lascia l'esperienza?" (Godot); il client invia
-  `rw-leave` alla pagina parent.
+- Esc nel client apre il Game Menu 2014; **Esci dal gioco** invia `rw-leave` alla
+  pagina parent, che torna a `place.html?id=…`.
 
 ## Client Godot
 
@@ -162,6 +178,8 @@ Launcher `scripts/main.gd`:
   consuma in `_ready()` e non ripristina l'autosave quando c'è un livello in attesa.
 - `scripts/net/place_client.gd` (`PlaceClient`): `HTTPRequest` POST play, timeout,
   validazione `LevelData`, errori 401/403/404/rete; `leave()` via `JavaScriptBridge`.
+  `post_ready()`/`post_error(message, detail)` sono gli unici messaggi `rw-ready`/
+  `rw-error`; `_fail` emette solo `request_failed` (nessun doppio errore).
 - `scripts/net/publish_client.gd` (`PublishClient`): login Bearer (`/api/token`),
   elenco proprie place, download livello, creazione place, nuove versioni e upload
   thumbnail. Una richiesta alla volta, esiti via segnali. Salva la sessione di Studio
@@ -169,13 +187,26 @@ Launcher `scripts/main.gd`:
 - `scripts/net/net_client.gd`: `start_with_ticket(ws_url, ticket, name)` invia
   `hello` con il ticket; gestisce `welcome`, `join`, `leave`, `state`, `chat`,
   `error`. I retry usano lo stesso ticket.
-- Sul web non compaiono LevelSelect, Menu né editor; HUD e top bar HTML mostrano
-  titolo/autore/giocatori. Chat disabilitata per gli ospiti.
-- Editor (`scripts/editor/editor.gd`): barra **Pubblica / Place… / Account / Script /
-  Output**, finestra account + tab Pubblica/Le mie place, anteprima thumbnail 512×288
-  da `SubViewport` che condivide il `World3D`, `meta.place_id`/`published_version`/
-  `visibility` nel livello e nell'autosave. In Studio **Esci** torna alla start screen;
-  nella build dev nativa torna a `main.tscn`.
+- Sul web non compaiono LevelSelect, Menu né editor; la barra HTML di `play.html`
+  mostra titolo/autore/conteggio e l'HUD 2014 mostra chat, player list, salute, Menu,
+  banner e mirino. La chat è disabilitata per gli ospiti.
+- HUD (`scripts/ui/hud.gd` + `scenes/ui/hud.tscn`): Root Control in design space,
+  tema runtime `RwTheme.shared()`, chat 500×120 con 20 righe di storia/8 visibili e
+  fade 45 s, player list 202 px con collapse, salute 170×18, input chat a piena
+  larghezza, pulsante Menu a scudo, banner 525×80, hurt overlay e FPS su F3.
+- Game Menu (`scripts/ui/game_menu.gd` + `scenes/ui/game_menu.tscn`): shield,
+  Menu 525×430 (`Riprendi` default), Leave 525×300 (`Resta` default) e Reset
+  525×370 (`Annulla` default). Visibile solo nel client web in place mode; Esc ha
+  priorità chat → menu → leave → reset → apre il menu. Il mondo non va in pausa.
+- Tema e scala (`themes/rw_theme.gd`, `scripts/ui/rw_tokens.gd`,
+  `scripts/ui/rw_layout.gd`): type variation `Rw*`, font Source Sans 3/Liberation
+  Sans preloadati, scala `clamp(min(w/1280,h/720), 0.8, 1.0)` sul CanvasLayer e Root
+  in design space. Studio/editor restano su `CONTENT_SCALE_MODE_CANVAS_ITEMS`.
+- Editor (`scripts/editor/editor.gd`): barra **Pubblica / I miei giochi / Account /
+  Script / Output**, finestra account + tab Pubblica/I miei giochi, anteprima
+  thumbnail 512×288 da `SubViewport` che condivide il `World3D`, `meta.place_id`/
+  `published_version`/`visibility` nel livello e nell'autosave. In Studio **Esci**
+  torna alla start screen; nella build dev nativa torna a `main.tscn`.
 - Pannello **Script** (M3): ItemList degli script, crea/elimina, attacca alla parte
   selezionata, nome/enabled e `CodeEdit`; **Output** mostra print/warn/error con colori.
   **Simula** avvia/ferma anche il `LuaRuntime`; **Testa** passa il livello a `main.tscn`
@@ -225,6 +256,10 @@ binario `godot` nel PATH.
 flatpak run org.godotengine.Godot --path Godot/robloxwebengine          # editor/dev
 flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine --import
 flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
+  --script res://tools/test_theme.gd
+flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
+  --script res://tools/test_hud.gd
+flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
   --script res://tools/test_gameplay.gd
 flatpak run org.godotengine.Godot --headless --path Godot/robloxwebengine \
   --script res://tools/test_level_io.gd
@@ -242,14 +277,22 @@ Dopo aver aggiunto/rimosso script con `class_name` eseguire una volta `--import`
 altrimenti la cache delle classi globali è stale e i tool falliscono con
 "Identifier ... not declared".
 
+Gate unico: `tools/verify.sh` (fast) e `tools/verify.sh --full` (server temporaneo
+su 9080/9081, `test_network`/`test_publish`/`test_studio`, export Web). Il full
+richiede le porte libere e usa una `ROBLOXWEB_DATA_DIR` temporanea con trap.
+`tools/export_web.sh` è l'export Web canonico.
+
 `tools/test_network.gd` richiede il server attivo e usa l'API per ottenere un
-ticket (login `demo`) e simulare un secondo giocatore. `tools/test_publish.gd`
+ticket (login `demo`) e simulare un secondo giocatore; l'assert chat usa
+`hud.chat_has_line(...)`. `tools/test_publish.gd`
 richiede il server attivo e verifica login Bearer, creazione, v2, download, script
 preservati e delete. `tools/test_studio.gd` richiede il server attivo e verifica
 preset, `StudioSession`, login e download dalla start screen, consumo del livello
 da parte dell'editor. `tools/test_lua.gd` non richiede il server: copre lexer/parser/
 VM, stdlib, closure, errori, sandbox, limiti, formato v2, `Touched`, scheduler e il
-livello demo con script.
+livello demo con script. `tools/test_theme.gd` verifica tema/cache/variation/scala e
+lo scan senza `theme_override_*`; `tools/test_hud.gd` copre chat, player list,
+collapse, salute, banner e stati/default del Game Menu.
 
 ## Export Web
 
@@ -258,15 +301,14 @@ Preset `Web` in `export_presets.cfg`: **single-threaded**
 output `WEBhtml/dev/index.html`, `include_filter="levels/*"`,
 `exclude_filter="tools/*,scenes/editor/*,scripts/editor/*,scenes/studio/*,scripts/studio/*,scripts/net/publish_client.gd"`.
 Non servono header COOP/COEP. L'editor e la start screen di Studio non sono inclusi
-nel client web; `scripts/lua/*` e `levels/*` (incluso `scripts_demo.rwl.json`) sì.
+nel client web; `scripts/lua/*`, i font e `levels/*` (incluso `scripts_demo.rwl.json`)
+sì. I font sono `preload` in `RwTheme`, quindi finiscono nel PCK senza `include_filter`.
 
 ```bash
-flatpak run org.godotengine.Godot --headless \
-  --path Godot/robloxwebengine \
-  --export-release "Web" \
-  "$PWD/WEBhtml/dev/index.html"
+./tools/export_web.sh
 ```
 
+Equivale a `flatpak run … --export-release "Web" "$PWD/WEBhtml/dev/index.html"`.
 Poi aprire `http://127.0.0.1:9080/` con `python3 server/run.py` attivo. Non serve
 più il vecchio server statico esterno per il MIME `.wasm`: `app.py` lo serve
 correttamente e con `Cache-Control: no-store`.
@@ -312,18 +354,28 @@ qui è verificata solo come file/zip. In sviluppo la start screen si apre anche 
 
 ## Struttura del progetto Godot
 
-- `scenes/main.tscn` → `scripts/main.gd`: bootstrap launcher, world, UI, `GlobalSound`,
-  `NetClient`, `PlaceClient`.
+- `scenes/main.tscn` → `scripts/main.gd`: bootstrap launcher, world, `HUD`,
+  `GameMenu`, `GlobalSound`, `NetClient`, `PlaceClient`; gestisce anche la macchina
+  a stati del menu e l'input durante chat/menu.
 - `scenes/studio/studio_start.tscn` → `scripts/studio/studio_start.gd`: schermata
-  iniziale di Studio (account, URL server, autosave, nuova/open file, Le mie place).
+  iniziale di Studio (account, URL server, autosave, nuova/open file, I miei giochi).
 - `scenes/editor/editor.tscn` → `scripts/editor/editor.gd`, `editor_camera.gd`:
   editor desktop (camera libera, palette, proprietà, snap, duplica/elimina, undo/redo,
   simula/testa, salva/apri, autosave `user://editor_autosave.rwl.json`, Pubblica).
   Non è caricato dal client web.
-- `scenes/ui/level_select.tscn`, `menu.tscn`, `hud.tscn`: UI della build nativa dev;
-  HUD condiviso dal client web (chat, monete, salute, giocatori, FPS).
+- `scenes/ui/level_select.tscn`, `menu.tscn`: UI della build nativa dev.
+- `scenes/ui/hud.tscn` + `scripts/ui/hud.gd` (`GameHUD`): HUD 2014 condiviso dal
+  client web (chat, player list, salute, input, Menu trigger, mirino); contiene le
+  istanze di `banner.tscn`, `debug.tscn` e `world/hurt_overlay.tscn`.
+- `scenes/ui/game_menu.tscn` + `scripts/ui/game_menu.gd` (`GameMenu`): Game Menu,
+  Leave e Reset a CanvasLayer 30, separati dal `menu.tscn` iniziale.
+- `scripts/ui/menu_trigger.gd` (`MenuTrigger`): pulsante a scudo disegnato in `_draw`.
+- `themes/rw_theme.gd` (`RwTheme`), `scripts/ui/rw_tokens.gd` (`RwTokens`),
+  `scripts/ui/rw_layout.gd` (`RwLayout`): tema runtime, token e design space.
+- `assets/fonts/SourceSans3-*.ttf` e `LiberationSans-*.ttf` + licenze OFL: font
+  preloadati da `RwTheme`, inclusi nel PCK Web.
 - `scenes/player/character.tscn`, `remote_character.tscn`: avatar R6 e avatar remoto
-  interpolato.
+  interpolato; `RemoteCharacter.display_name` alimenta la player list.
 - `scripts/world/level_data.gd` (`LevelData`), `level_builder.gd` (`LevelBuilder`),
   `level_io.gd` (`LevelIO`): formato `.rwl.json` v1 con campo `scripts` (v2 in M3),
   validazione, dati → scena, JSON/file. Entità: `part`, `spawn`, `checkpoint`, `coin`,
@@ -336,8 +388,10 @@ qui è verificata solo come file/zip. In sviluppo la start screen si apre anche 
 - `scripts/io/level_file_io.gd`: dialog nativi su desktop, `<input type=file>` e
   download su web (usato dall'editor, non dal client web).
 - `scripts/audio/sfx_factory.gd`: SFX procedurali, nessun asset esterno.
-- `tools/`: `generate_scenes.gd` (rigenera le scene), `export_default_level.gd`,
-  `setup_project_settings.gd`, test headless. Esclusi dall'export.
+- `tools/`: `generate_scenes.gd` (rigenera solo world/character/menu/level_select/
+  editor/studio/main: **non** riscrive `hud.tscn`, `game_menu.tscn`, banner, debug e
+  hurt overlay), `export_default_level.gd`, `setup_project_settings.gd`, test headless
+  e i checker del sito. Esclusi dall'export.
 
 Input map (`move_forward`, `move_back`, `move_left`, `move_right`, `jump`,
 `toggle_shift_lock`) in `project.godot`, eventi con `device=-1`.
@@ -389,3 +443,16 @@ Renderer GL Compatibility (Windows D3D12), fisica Jolt Physics.
   inclusi nel Web, altrimenti l'export li trascina dentro o fallisce.
 - `build/` e `WEBhtml/downloads/` sono output di build: non committarli; si rigenerano
   con `./build_studio.sh`.
+- Il tema 2014 è **runtime** (`RwTheme.shared()`), non un `.tres`: l'anteprima editor
+  delle scene non mostra la pelle. Non aggiungere `theme_override_*` alle scene
+  `hud.tscn`/`game_menu.tscn`; `tools/test_theme.gd` fallisce se ne compaiono.
+- HUD e Game Menu vivono in design space: il CanvasLayer applica la scala 0.8–1.0 e il
+  Root Control è `viewport / scala`. Non usare `PRESET_FULL_RECT` sul Root e non
+  attivare `content_scale_mode` nel client (Studio/editor restano `CANVAS_ITEMS`).
+- `generate_scenes.gd` non genera più `hud.tscn` né `game_menu.tscn`: sono scene scritte
+  a mano. Rigenerare le scene non deve reintrodurre l'HUD vecchio.
+- `play.html` nasconde l'overlay solo su `rw-ready`, non sull'evento `load`; il client
+  invia `rw-ready` una volta per caricamento dopo livello e personaggio. Non reintrodurre
+  un boot in-canvas nel caso embedded: l'HTML è l'unico proprietario del caricamento.
+- Le contact sheet finali stanno in `docs/roblox-2014/evidence/`; il set completo
+  (before/after) resta in `.scratch/roblox-2014-aesthetic/evidence/` e non è versionato.

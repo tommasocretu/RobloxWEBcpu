@@ -5,46 +5,65 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <title>Moderazione — RobloxWeb</title>
+<meta name="description" content="Pagina di moderazione di RobloxWeb: segnalazioni aperte e giochi nascosti.">
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="admin">
 <header class="site-header" id="site-header"></header>
 <main class="container">
   <a class="back-link" href="/">← Torna alla home</a>
-  <section class="section-head">
-    <h1>Moderazione</h1>
-    <span class="muted small">Segnalazioni, contenuti nascosti e ripristino</span>
-  </section>
+  <h1 class="admin-title">Moderazione</h1>
+
   <div class="alert" id="admin-alert" hidden></div>
-  <div class="admin-columns">
-    <section class="admin-box">
-      <div class="section-head">
-        <h2>Segnalazioni aperte <span class="badge badge-unlisted" id="open-count">0</span></h2>
-        <span class="muted small">Ignora oppure nascondi l'esperienza</span>
-      </div>
-      <div class="admin-list" id="reports">
-        <div class="empty">Caricamento…</div>
+
+  <section class="place-error" id="admin-denied" hidden>
+    <h2>Questa pagina è riservata agli amministratori.</h2>
+    <p>Il tuo account non ha i permessi per gestire segnalazioni e giochi nascosti.</p>
+    <a class="btn btn-neutral btn-medium" href="/">Torna alla home</a>
+  </section>
+
+  <div id="admin-content" hidden>
+    <section class="admin-section">
+      <h2>Segnalazioni aperte (<span id="open-count">0</span>)</h2>
+      <div class="table-scroll">
+        <table class="data-table admin-table">
+          <thead>
+            <tr><th>Gioco</th><th>Motivo</th><th>Segnalato da</th><th>Data</th><th>Azioni</th></tr>
+          </thead>
+          <tbody id="reports-body">
+            <tr><td colspan="5" class="admin-empty">Caricamento…</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
-    <section class="admin-box">
-      <div class="section-head">
-        <h2>Esperienze nascoste <span class="badge badge-private" id="hidden-count">0</span></h2>
-        <span class="muted small">Non compaiono nel catalogo pubblico</span>
-      </div>
-      <div class="admin-list" id="hidden-list">
-        <div class="empty">Caricamento…</div>
+
+    <section class="admin-section">
+      <h2>Giochi nascosti (<span id="hidden-count">0</span>)</h2>
+      <div class="table-scroll">
+        <table class="data-table admin-table">
+          <thead>
+            <tr><th>Gioco</th><th>Autore</th><th>Motivo</th><th>Data</th><th>Azioni</th></tr>
+          </thead>
+          <tbody id="hidden-body">
+            <tr><td colspan="5" class="admin-empty">Caricamento…</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </div>
 </main>
-<footer class="site-footer">RobloxWeb — strumenti di moderazione riservati agli amministratori.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
 <script>
 (async function () {
   const alertBox = document.getElementById("admin-alert");
-  const reportsBox = document.getElementById("reports");
-  const hiddenBox = document.getElementById("hidden-list");
+  const denied = document.getElementById("admin-denied");
+  const content = document.getElementById("admin-content");
+  const reportsBody = document.getElementById("reports-body");
+  const hiddenBody = document.getElementById("hidden-body");
   const openCount = document.getElementById("open-count");
   const hiddenCount = document.getElementById("hidden-count");
   const REASONS = {
@@ -57,62 +76,64 @@
   const me = await RW.requireUser();
   if (!me) return;
   if (!me.is_admin) {
-    reportsBox.innerHTML = "";
-    hiddenBox.innerHTML = "";
-    RW.setAlert(alertBox, "Questa pagina è riservata agli amministratori.", "error");
+    denied.hidden = false;
+    await RW.initHeader();
     return;
   }
+  content.hidden = false;
 
-  function reportItem(report) {
-    const when = report.created_at
-      ? new Date(report.created_at).toLocaleString("it-IT")
-      : "";
-    return `
-      <article class="admin-item" data-report-id="${report.id}">
-        <div class="admin-item-head">
-          <div>
-            <a href="/place.html?id=${encodeURIComponent(report.place_id)}"><strong>${RW.escape(report.place_title)}</strong></a>
-            <span class="badge badge-${report.place_hidden ? "hidden" : "public"}">${report.place_hidden ? "Nascosta" : "Visibile"}</span>
-            <div class="admin-meta">
-              di ${RW.escape(report.place_author)} · segnalata da ${RW.escape(report.reporter)} · ${RW.escape(when)}
-            </div>
-          </div>
-          <div class="admin-actions">
-            <button class="btn btn-small btn-ghost" type="button" data-resolve="${report.id}" data-action="dismiss">Ignora</button>
-            <button class="btn btn-small btn-danger" type="button" data-resolve="${report.id}" data-action="hide" ${report.place_hidden ? "disabled" : ""}>Nascondi</button>
-          </div>
-        </div>
-        <div class="admin-reason">${RW.escape(REASONS[report.reason] || report.reason)}</div>
-        ${report.details ? `<p class="small muted">${RW.escape(report.details)}</p>` : ""}
-      </article>`;
+  function formatDate(iso) {
+    if (!iso) return "—";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleString("it-IT");
   }
 
-  function hiddenItem(place) {
-    return `
-      <article class="admin-item" data-hidden-id="${place.id}">
-        <div class="admin-item-head">
-          <div>
-            <a href="/place.html?id=${encodeURIComponent(place.id)}"><strong>${RW.escape(place.title)}</strong></a>
-            <span class="badge badge-hidden">Nascosta</span>
-            <div class="admin-meta">
-              di ${RW.escape(place.author)}${place.hidden_reason ? " · " + RW.escape(place.hidden_reason) : ""}
-            </div>
-          </div>
-          <div class="admin-actions">
-            <button class="btn btn-small" type="button" data-restore="${place.id}">Ripristina</button>
-          </div>
+  function reportRow(report) {
+    return `<tr data-report-id="${report.id}">
+      <td>
+        <a href="/place.html?id=${encodeURIComponent(report.place_id)}"><strong>${RW.escape(report.place_title)}</strong></a>
+        <span class="badge badge-${report.place_hidden ? "hidden" : "public"}">${report.place_hidden ? "Nascosta" : "Visibile"}</span>
+        <div class="admin-author">di ${RW.escape(report.place_author)}</div>
+      </td>
+      <td>
+        <div>${RW.escape(REASONS[report.reason] || report.reason)}</div>
+        ${report.details ? `<div class="small muted">${RW.escape(report.details)}</div>` : ""}
+      </td>
+      <td>${RW.escape(report.reporter)}</td>
+      <td class="small">${RW.escape(formatDate(report.created_at))}</td>
+      <td>
+        <div class="admin-actions">
+          <button class="btn btn-small btn-control" type="button" data-resolve="${report.id}" data-action="dismiss">Ignora</button>
+          <button class="btn btn-small btn-danger" type="button" data-resolve="${report.id}" data-action="hide" ${report.place_hidden ? "disabled" : ""}>Nascondi</button>
         </div>
-      </article>`;
+      </td>
+    </tr>`;
+  }
+
+  function hiddenRow(place) {
+    return `<tr data-hidden-id="${place.id}">
+      <td>
+        <a href="/place.html?id=${encodeURIComponent(place.id)}"><strong>${RW.escape(place.title)}</strong></a>
+        <span class="badge badge-hidden">Nascosta</span>
+      </td>
+      <td>${RW.escape(place.author)}</td>
+      <td>${RW.escape(place.hidden_reason || "—")}</td>
+      <td class="small">${RW.escape(formatDate(place.updated_at))}</td>
+      <td>
+        <button class="btn btn-small btn-primary" type="button" data-restore="${place.id}">Ripristina</button>
+      </td>
+    </tr>`;
   }
 
   function bindReports() {
-    reportsBox.querySelectorAll("[data-resolve]").forEach((button) => {
+    reportsBody.querySelectorAll("[data-resolve]").forEach((button) => {
       button.addEventListener("click", () => resolveReport(button));
     });
   }
 
   function bindHidden() {
-    hiddenBox.querySelectorAll("[data-restore]").forEach((button) => {
+    hiddenBody.querySelectorAll("[data-restore]").forEach((button) => {
       button.addEventListener("click", () => restorePlace(button));
     });
   }
@@ -124,24 +145,25 @@
     ]);
     if (!reports.ok) {
       RW.setAlert(alertBox, reports.error, "error");
-      reportsBox.innerHTML = "";
+      reportsBody.innerHTML = "";
       return;
     }
     if (!hidden.ok) {
       RW.setAlert(alertBox, hidden.error, "error");
-      hiddenBox.innerHTML = "";
+      hiddenBody.innerHTML = "";
       return;
     }
     RW.setAlert(alertBox, "", "error");
-    const items = reports.data.reports || [];
-    openCount.textContent = RW.formatNumber(items.length);
-    hiddenCount.textContent = RW.formatNumber((hidden.data.places || []).length);
-    reportsBox.innerHTML = items.length
-      ? items.map(reportItem).join("")
-      : '<div class="empty">Nessuna segnalazione aperta.</div>';
-    hiddenBox.innerHTML = (hidden.data.places || []).length
-      ? hidden.data.places.map(hiddenItem).join("")
-      : '<div class="empty">Nessuna esperienza nascosta.</div>';
+    const reportItems = reports.data.reports || [];
+    const hiddenItems = hidden.data.places || [];
+    openCount.textContent = RW.formatNumber(reportItems.length);
+    hiddenCount.textContent = RW.formatNumber(hiddenItems.length);
+    reportsBody.innerHTML = reportItems.length
+      ? reportItems.map(reportRow).join("")
+      : '<tr><td colspan="5" class="admin-empty">Nessuna segnalazione aperta.</td></tr>';
+    hiddenBody.innerHTML = hiddenItems.length
+      ? hiddenItems.map(hiddenRow).join("")
+      : '<tr><td colspan="5" class="admin-empty">Nessun gioco nascosto.</td></tr>';
     bindReports();
     bindHidden();
   }
@@ -149,8 +171,16 @@
   async function resolveReport(button) {
     const reportId = button.dataset.resolve;
     const action = button.dataset.action;
-    if (action === "hide" && !confirm("Nascondere questa esperienza dal catalogo pubblico?")) {
-      return;
+    if (action === "hide") {
+      const row = button.closest("tr");
+      const title = row ? row.querySelector("td strong").textContent : "questo gioco";
+      const confirmed = await RW.confirmDialog({
+        title: "Nascondere questo gioco?",
+        message: '"' + title + '" non sarà più visibile nel catalogo, nei profili e nei preferiti.',
+        confirmLabel: "Nascondi",
+        danger: true,
+      });
+      if (!confirmed) return;
     }
     button.disabled = true;
     const result = await RW.api("/api/admin/reports/" + reportId + "/resolve", {
@@ -165,13 +195,21 @@
     await load();
     RW.setAlert(
       alertBox,
-      action === "hide" ? "Esperienza nascosta." : "Segnalazione ignorata.",
+      action === "hide" ? "Gioco nascosto." : "Segnalazione ignorata.",
       "info"
     );
   }
 
   async function restorePlace(button) {
     const placeId = button.dataset.restore;
+    const row = button.closest("tr");
+    const title = row ? row.querySelector("td strong").textContent : "questo gioco";
+    const confirmed = await RW.confirmDialog({
+      title: "Ripristinare questo gioco?",
+      message: '"' + title + '" tornerà visibile secondo la sua visibilità.',
+      confirmLabel: "Ripristina",
+    });
+    if (!confirmed) return;
     button.disabled = true;
     const result = await RW.api("/api/admin/places/" + placeId + "/moderate", {
       method: "POST",
@@ -183,7 +221,7 @@
       return;
     }
     await load();
-    RW.setAlert(alertBox, "Esperienza ripristinata.", "info");
+    RW.setAlert(alertBox, "Gioco ripristinato.", "info");
   }
 
   await load();

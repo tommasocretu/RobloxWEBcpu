@@ -4,112 +4,135 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<title>RobloxWeb — Esperienze</title>
+<title>RobloxWeb — Giochi creati dagli utenti</title>
+<meta name="description" content="Benvenuto su RobloxWeb: gioca a obby, parkour e mondi creati dalla community con RobloxWeb Studio.">
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="home">
 <header class="site-header" id="site-header"></header>
 <main class="container">
-  <section class="hero">
-    <div>
-      <h1>Scopri e gioca esperienze create dalla community.</h1>
-      <p>Obby, parkour e mondi costruiti con RobloxWeb Studio. Entra come ospite o accedi per ritrovare il tuo profilo.</p>
-      <div class="hero-actions" id="hero-actions">
-        <a class="btn btn-primary btn-big" href="/login.html">Accedi o registrati</a>
-        <a class="btn btn-big" href="#esperienze">Sfoglia esperienze</a>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title">Benvenuto su RobloxWeb</h1>
+      <p>Obby, parkour e mondi costruiti con RobloxWeb Studio. Scegli un gioco e entra subito, oppure crea il tuo.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-medium btn-play" href="#giochi">Gioca ora</a>
+        <a class="btn btn-neutral btn-medium" href="/studio.html">Crea</a>
       </div>
     </div>
+    <a class="hero-art" id="hero-art" href="/games.html" hidden>
+      <div class="hero-art-media" id="hero-art-media" aria-hidden="true"></div>
+      <span class="hero-badge">In evidenza · <span id="hero-art-title"></span></span>
+    </a>
   </section>
 
-  <section id="esperienze">
+  <section id="giochi" aria-labelledby="section-title">
     <div class="section-head">
-      <h2 id="section-title">Popolari</h2>
-      <div class="main-nav" id="sort-nav">
-        <a href="#" data-sort="popular">Popolari</a>
-        <a href="#" data-sort="likes">Più apprezzati</a>
-        <a href="#" data-sort="recent">Recenti</a>
+      <h2 id="section-title">Giochi popolari</h2>
+      <div class="tabs" id="sort-nav" aria-label="Ordina i giochi">
+        <button type="button" data-sort="popular" class="active" aria-pressed="true">Popolari</button>
+        <button type="button" data-sort="likes" aria-pressed="false">Più apprezzati</button>
+        <button type="button" data-sort="recent" aria-pressed="false">Recenti</button>
       </div>
     </div>
     <div class="alert" id="home-alert" hidden></div>
-    <div class="card-grid" id="places-grid"></div>
-    <div class="empty" id="places-empty" hidden>Nessuna esperienza trovata.</div>
+    <div class="empty home-status" id="home-status">Caricamento…</div>
+    <div class="card-grid" id="places-grid" hidden></div>
+    <div class="empty" id="places-empty" hidden>
+      Nessun gioco trovato. <a href="/games.html">Vedi tutti i giochi</a>
+    </div>
+    <div class="home-more" id="home-more" hidden>
+      <a class="btn btn-neutral btn-medium" href="/games.html">Vedi tutti</a>
+    </div>
   </section>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti. Progetto locale in sviluppo.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 
 <script>
 (async function () {
   const grid = document.getElementById("places-grid");
+  const status = document.getElementById("home-status");
   const empty = document.getElementById("places-empty");
+  const more = document.getElementById("home-more");
   const alertBox = document.getElementById("home-alert");
-  const title = document.getElementById("section-title");
-  const query = RW.qs("q") || "";
-  const SORT_LABELS = { popular: "Popolari", likes: "Più apprezzati", recent: "Recenti" };
+  const heroArt = document.getElementById("hero-art");
+  const heroMedia = document.getElementById("hero-art-media");
+  const heroTitle = document.getElementById("hero-art-title");
+  const SORTS = ["popular", "likes", "recent"];
   let sort = "popular";
+  let featured = null;
+  let loadSeq = 0;
 
-  if (query) {
-    title.textContent = 'Risultati per "' + query + '"';
-  }
-
-  const user = await RW.me();
-  if (user) {
-    document.getElementById("hero-actions").innerHTML =
-      '<a class="btn btn-primary btn-big" href="/profile.html">Ciao, ' + RW.escape(user.name) + '</a>' +
-      '<a class="btn btn-big" href="#esperienze">Sfoglia esperienze</a>';
-  } else {
-    document.getElementById("hero-actions").innerHTML =
-      '<a class="btn btn-primary btn-big" href="/login.html">Accedi o registrati</a>' +
-      '<button class="btn btn-big" id="hero-guest" type="button">Continua come ospite</button>';
-    document.getElementById("hero-guest").addEventListener("click", async (event) => {
-      event.currentTarget.disabled = true;
-      const result = await RW.startGuest("/");
-      if (!result.ok) {
-        event.currentTarget.disabled = false;
-        RW.setAlert(alertBox, result.error, "error");
-      }
+  function renderSort() {
+    document.querySelectorAll("#sort-nav [data-sort]").forEach((button) => {
+      const active = button.dataset.sort === sort;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
     });
   }
 
+  function renderHero(place) {
+    featured = place || null;
+    if (!place) {
+      heroArt.hidden = true;
+      heroArt.removeAttribute("href");
+      heroMedia.innerHTML = "";
+      heroTitle.textContent = "";
+      return;
+    }
+    heroArt.hidden = false;
+    heroArt.href = "/place.html?id=" + encodeURIComponent(place.id);
+    heroMedia.innerHTML = RW.thumbHTML(place, "hero");
+    heroTitle.textContent = place.title;
+  }
+
   async function load() {
-    grid.innerHTML = '<div class="empty">Caricamento…</div>';
+    const seq = ++loadSeq;
+    const requestedSort = sort;
+    grid.hidden = true;
     empty.hidden = true;
-    const params = new URLSearchParams({ sort });
-    if (query) params.set("q", query);
-    const result = await RW.api("/api/places?" + params.toString());
+    more.hidden = true;
+    status.hidden = false;
+    status.textContent = "Caricamento…";
+    RW.setAlert(alertBox, "", "error");
+
+    const result = await RW.api("/api/places?sort=" + encodeURIComponent(requestedSort));
+    if (requestedSort === "popular" && result.ok && !featured) {
+      renderHero((result.data.places || [])[0] || null);
+    }
+    if (seq !== loadSeq) return;
+
+    status.hidden = true;
     if (!result.ok) {
       grid.innerHTML = "";
       RW.setAlert(alertBox, result.error, "error");
       return;
     }
-    RW.setAlert(alertBox, "", "error");
+
     const items = result.data.places || [];
-    grid.innerHTML = items.map(RW.card).join("");
+    grid.innerHTML = items.slice(0, 8).map(RW.card).join("");
+    grid.hidden = items.length === 0;
     empty.hidden = items.length > 0;
-    if (!query) {
-      title.textContent = SORT_LABELS[sort] || "Esperienze";
-    }
-    document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
-      link.style.color = link.dataset.sort === sort ? "#fff" : "";
-      link.style.fontWeight = link.dataset.sort === sort ? "700" : "";
-    });
+    more.hidden = items.length === 0;
+    more.querySelector("a").href = sort === "popular"
+      ? "/games.html"
+      : "/games.html?sort=" + encodeURIComponent(sort);
+    renderSort();
   }
 
-  document.querySelectorAll("#sort-nav [data-sort]").forEach((link) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      sort = link.dataset.sort;
+  document.querySelectorAll("#sort-nav [data-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      sort = SORTS.includes(button.dataset.sort) ? button.dataset.sort : "popular";
+      renderSort();
       load();
     });
   });
 
-  await RW.initHeader();
-  await load();
-  RW.pollLive(() => {
-    const params = new URLSearchParams({ sort });
-    if (query) params.set("q", query);
-    return "/api/places?" + params.toString();
-  }, 10000);
+  await Promise.all([RW.initHeader(), load()]);
+  RW.pollLive(() => "/api/places?sort=" + encodeURIComponent(sort), 10000);
 })();
 </script>
 </body>

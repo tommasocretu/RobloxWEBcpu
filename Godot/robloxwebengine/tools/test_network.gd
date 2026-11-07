@@ -158,7 +158,7 @@ func _check_remote_state() -> bool:
 
 
 func _check_chat() -> bool:
-	return _main.hud.get_node("ChatLog").text.contains("%s: ciao dal bot" % _player_name)
+	return _main.hud.chat_has_line(_player_name, "ciao dal bot")
 
 
 func _check_remote_removed() -> bool:

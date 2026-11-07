@@ -26,6 +26,7 @@ var _quit_button: Button
 
 
 func _ready() -> void:
+	RwLayout.use_editor(get_window())
 	DisplayServer.window_set_title("RobloxWeb Studio")
 	_publish_client = PublishClient.new()
 	_publish_client.name = "PublishClient"
@@ -85,7 +86,7 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 34)
 	titles.add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "Crea, testa e pubblica le tue esperienze."
+	subtitle.text = "Crea, testa e pubblica i tuoi giochi."
 	subtitle.add_theme_font_size_override("font_size", 15)
 	subtitle.add_theme_color_override("font_color", Color(0.62, 0.70, 0.82))
 	titles.add_child(subtitle)
@@ -150,7 +151,7 @@ func _build_account_panel() -> Control:
 	editor_heading.add_theme_font_size_override("font_size", 20)
 	box.add_child(editor_heading)
 
-	_new_button = _make_button("Nuova esperienza", "Crea un livello vuoto")
+	_new_button = _make_button("Nuovo gioco", "Crea un livello vuoto")
 	_new_button.pressed.connect(_open_new)
 	box.add_child(_new_button)
 
@@ -189,7 +190,7 @@ func _build_places_panel() -> Control:
 	heading_row.add_theme_constant_override("separation", 10)
 	box.add_child(heading_row)
 	var heading := Label.new()
-	heading.text = "Le mie place"
+	heading.text = "I miei giochi"
 	heading.add_theme_font_size_override("font_size", 20)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heading_row.add_child(heading)
@@ -251,7 +252,7 @@ func _on_login_pressed() -> void:
 		_places_list.clear()
 		_update_account_ui()
 		_set_status(_account_status, "Disconnesso.", false)
-		_set_status(_places_status, "Accedi per vedere le tue esperienze.", false)
+		_set_status(_places_status, "Accedi per vedere i tuoi giochi.", false)
 		_save_settings()
 		return
 
@@ -301,7 +302,7 @@ func _update_account_ui() -> void:
 	else:
 		_set_status(_account_status, "Non connesso.", false)
 	if not logged and _places_list != null and _places_list.item_count == 0:
-		_set_status(_places_status, "Accedi per vedere le tue esperienze.", false)
+		_set_status(_places_status, "Accedi per vedere i tuoi giochi.", false)
 
 
 # --- Place -------------------------------------------------------------------------
@@ -309,10 +310,10 @@ func _update_account_ui() -> void:
 func _refresh_places() -> void:
 	if not _publish_client.is_logged_in():
 		_places_list.clear()
-		_set_status(_places_status, "Accedi per vedere le tue esperienze.", false)
+		_set_status(_places_status, "Accedi per vedere i tuoi giochi.", false)
 		return
 	_refresh_button.disabled = true
-	_set_status(_places_status, "Caricamento delle tue esperienze…", false)
+	_set_status(_places_status, "Caricamento dei tuoi giochi…", false)
 	if not _publish_client.fetch_places():
 		_refresh_button.disabled = false
 		_set_status(_places_status, "Richiesta già in corso.", true)
@@ -350,7 +351,7 @@ func _refresh_places() -> void:
 			false
 		)
 	else:
-		_set_status(_places_status, "Non hai ancora pubblicato esperienze.", false)
+		_set_status(_places_status, "Non hai ancora pubblicato giochi.", false)
 
 
 func _visibility_label(value: String) -> String:
@@ -413,7 +414,7 @@ func _load_place_into_session(place_id: int) -> bool:
 # --- Editor ------------------------------------------------------------------------
 
 func _open_new() -> void:
-	StudioSession.set_pending(LevelData.new_level("Nuova esperienza"), "Nuovo livello.")
+	StudioSession.set_pending(LevelData.new_level("Nuovo gioco"), "Nuovo livello.")
 	_leave_to_editor()
 
 

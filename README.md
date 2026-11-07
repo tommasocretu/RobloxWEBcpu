@@ -14,6 +14,8 @@ Stato del progetto basato su [`PLAN.md`](PLAN.md).
 ## Stato sintetico
 
 - Stato ufficiale del piano (28 ottobre 2026): **M0, M1, M2, M3, M4 e M5 completati e verificati**.
+- Il re-skin **Roblox 2014** è completo: specifica, token, HUD/Game Menu, `play.html`,
+  contact sheet e accettazione in [`docs/roblox-2014/`](docs/roblox-2014/).
 - Il piano M0–M5 è completo; il deploy pubblico resta una decisione separata (vedi `deploy/`).
 - La place **Demo script** (`levels/scripts_demo.rwl.json`) mostra Lua in azione: porta con
   `Touched`, piattaforma rotante, lava e teletrasporto; in Studio i pannelli **Script** e

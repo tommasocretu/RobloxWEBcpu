@@ -5,62 +5,90 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <title>RobloxWeb Studio — RobloxWeb</title>
+<meta name="description" content="Scarica RobloxWeb Studio per Windows o Linux e pubblica i tuoi giochi su RobloxWeb.">
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/source-sans-3/SourceSans3-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body data-page="studio">
 <header class="site-header" id="site-header"></header>
 <main class="container">
-  <section class="studio-hero">
-    <div>
-      <h1>RobloxWeb Studio</h1>
-      <p>
-        L'editor desktop per costruire le tue esperienze: piazza parti, usa gli strumenti
+  <h1 class="studio-title">RobloxWeb Studio</h1>
+
+  <div class="studio-layout">
+    <section class="studio-main">
+      <p class="studio-intro">
+        L'editor desktop per costruire i tuoi giochi: piazza parti, usa gli strumenti
         dell'editor, premi <strong>Testa</strong> per provare il livello e
-        <strong>Pubblica</strong> per creare una nuova esperienza o una nuova versione sul
-        server.
+        <strong>Pubblica</strong> per creare un nuovo gioco o una nuova versione sul server.
       </p>
-      <div class="play-row">
-        <a class="btn btn-primary" href="/downloads/RobloxWebStudio-windows.zip" download>
-          Download Windows (.zip)
-        </a>
-        <a class="btn btn-primary" href="/downloads/RobloxWebStudio-linux.zip" download>
-          Download Linux (.zip)
-        </a>
-      </div>
-      <p class="small muted" style="margin-top:14px">
-        Windows e Linux x86_64. Se il download restituisce 404, i binari non sono ancora
-        stati compilati: dalla root del repository esegui <code>./build_studio.sh</code>.
-      </p>
-      <p class="small muted">
-        Linux: <code>unzip RobloxWebStudio-linux.zip &amp;&amp; chmod +x RobloxWebStudio.x86_64</code>
-        poi avvia il file. Windows: estrai lo zip e apri <code>RobloxWebStudio.exe</code>.
-        Il server deve essere attivo su <code>http://127.0.0.1:9080</code> (o cambia l'URL
-        nella schermata iniziale).
-      </p>
-    </div>
-    <aside class="studio-box">
-      <h2>Come pubblicare</h2>
-      <ul>
-        <li>Avvia Studio e accedi con il tuo account (o continua offline).</li>
-        <li>Crea un nuovo livello, apri un file o scegli una delle tue place.</li>
-        <li>Apri <strong>Script</strong> per aggiungere codice Lua alla parte selezionata;
-            <strong>Output</strong> mostra print, avvisi ed errori.</li>
-        <li>Premi <strong>Simula</strong> per eseguire anche gli script nell'editor, oppure
-            <strong>Testa</strong> per giocare la versione corrente.</li>
-        <li>Premi <strong>Pubblica</strong>, scegli titolo, descrizione e visibilità.</li>
-        <li>La thumbnail viene catturata dalla vista corrente dell'editor.</li>
-        <li>La pagina esperienza mostra subito la nuova versione.</li>
-      </ul>
-      <h2>Server locale</h2>
-      <p class="small muted" style="margin:0 0 14px">
-        <code>python3 server/run.py</code><br>
-        URL predefinito in Studio: <code>http://127.0.0.1:9080</code>.
-      </p>
-      <a class="btn btn-block" href="/">Torna al catalogo</a>
+
+      <section class="studio-download">
+        <h2>Scarica Studio</h2>
+        <div class="studio-download-actions">
+          <a class="btn btn-primary btn-large" href="/downloads/RobloxWebStudio-windows.zip" download>
+            Scarica per Windows
+          </a>
+          <a class="btn btn-primary btn-large" href="/downloads/RobloxWebStudio-linux.zip" download>
+            Scarica per Linux
+          </a>
+        </div>
+        <p class="studio-note">Windows e Linux · zip · x86_64.</p>
+        <p class="studio-note">
+          Se il download restituisce 404, i binari non sono ancora stati compilati:
+          dalla root del repository esegui <code>./build_studio.sh</code>.
+        </p>
+      </section>
+
+      <section class="studio-block">
+        <h2>Requisiti</h2>
+        <ul>
+          <li>Windows 10 o successivo, oppure Linux x86_64.</li>
+          <li>Godot non è richiesto: Studio è distribuito come pacchetto autonomo.</li>
+          <li>Per pubblicare serve un server RobloxWeb attivo e un account non ospite.</li>
+        </ul>
+      </section>
+
+      <section class="studio-block">
+        <h2>Comandi</h2>
+        <p class="studio-note">
+          Linux: <code>unzip RobloxWebStudio-linux.zip &amp;&amp; chmod +x RobloxWebStudio.x86_64</code>,
+          poi avvia il file.
+        </p>
+        <p class="studio-note">
+          Windows: estrai lo zip e apri <code>RobloxWebStudio.exe</code>.
+        </p>
+      </section>
+    </section>
+
+    <aside class="studio-side">
+      <section class="studio-box">
+        <h2>Come pubblicare</h2>
+        <ol>
+          <li>Avvia Studio e accedi con il tuo account (o continua offline).</li>
+          <li>Crea un nuovo livello, apri un file o scegli uno dei tuoi giochi.</li>
+          <li>Apri <strong>Script</strong> per aggiungere codice Lua alla parte selezionata;
+              <strong>Output</strong> mostra print, avvisi ed errori.</li>
+          <li>Premi <strong>Simula</strong> per eseguire anche gli script nell'editor, oppure
+              <strong>Testa</strong> per giocare la versione corrente.</li>
+          <li>Premi <strong>Pubblica</strong>, scegli titolo, descrizione e visibilità.</li>
+          <li>La thumbnail viene catturata dalla vista corrente dell'editor.</li>
+          <li>La pagina del gioco mostra subito la nuova versione.</li>
+        </ol>
+      </section>
+
+      <section class="studio-box">
+        <h2>Server locale</h2>
+        <p>
+          <code>python3 server/run.py</code><br>
+          URL predefinito in Studio: <code>http://127.0.0.1:9080</code>.
+        </p>
+        <a class="btn btn-neutral btn-medium btn-block" href="/games.html">Torna ai giochi</a>
+      </section>
     </aside>
-  </section>
+  </div>
 </main>
-<footer class="site-footer">RobloxWeb — piattaforma di esperienze create dagli utenti.</footer>
+<footer class="site-footer" id="site-footer"></footer>
 </body>
 </html>
