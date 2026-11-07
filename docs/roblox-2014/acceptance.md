@@ -224,7 +224,7 @@
 | X-GATE-02 | Gate full verde: test Godot completi, `test_network`/`test_publish`/`test_studio`, checker, export Web, smoke `play.html`. | `tools/verify.sh --full` verde (server temporaneo, network/publish/studio, export, smoke play) | ✔ |
 | X-GATE-03 | Matrice visuale completa acquisita e archiviata; nessuna regressione nota. | `docs/roblox-2014/evidence/` (matrice sito, play, HUD, menu, scala) | ✔ |
 | X-GATE-04 | Revisione umana di contact sheet + acceptance completata. | In attesa di revisione umana di contact sheet e acceptance | ☐ |
-| X-GATE-05 | Merge commit `aesthetic-2014` → `main`; rollback documentato (`git revert -m 1 <merge>`). | Da eseguire dopo il sign-off (merge commit, non squash) | ☐ |
+| X-GATE-05 | Merge commit `aesthetic-2014` → `main`; rollback documentato (`git revert -m 1 <merge>`). | Merge commit 9473554 eseguito il 2026-11-07 | ✔ |
 
 ## 7. Firma
 
